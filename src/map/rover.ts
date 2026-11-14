@@ -15,7 +15,8 @@ export const ROVER_CREDIT = {
 };
 
 const REAL_HEIGHT_M = 2.2; // Perseverance is about 2.2 m tall
-const SCREEN_HEIGHT_PX = 60; // how tall it is drawn while the camera is too far away to see it at real size
+const SCREEN_HEIGHT_PX = 90; // how tall it is drawn while the camera is too far away to see it at real size
+const SITE_ELEVATION_M = -2570; // ground height at the landing site (MOLA datum)
 const HEADING = 120; // degrees, so the model is seen from its side in the default view
 
 const roverSymbol = (height: number) =>
@@ -52,12 +53,14 @@ export function keepRoverVisible(view: SceneView, layer: GraphicsLayer) {
     () => view.camera,
     (camera) => {
       if (!camera) return;
-      const p = camera.position;
-      const dx = ((p.longitude ?? p.x) - LANDING_SITE.lon) * METERS_PER_DEGREE * Math.cos((LANDING_SITE.lat * Math.PI) / 180);
-      const dy = ((p.latitude ?? p.y) - LANDING_SITE.lat) * METERS_PER_DEGREE;
-      const dz = (p.z ?? 0) + 2600; // the landing site is ~2,600 m below the Mars datum
-      const distance = Math.hypot(dx, dy, dz);
-      const metersPerPx = (2 * distance * Math.tan(((camera.fov ?? 55) * Math.PI) / 360)) / Math.max(view.height, 1);
+      // Measure the screen scale at the site: project two ground points 1 km apart (east-west).
+      const at = (dLon: number) => new Point({ x: LANDING_SITE.lon + dLon, y: LANDING_SITE.lat, z: SITE_ELEVATION_M, spatialReference: marsSR() });
+      const a = view.toScreen(at(0));
+      const b = view.toScreen(at(1000 / (METERS_PER_DEGREE * Math.cos((LANDING_SITE.lat * Math.PI) / 180))));
+      if (!a || !b) return;
+      const px = Math.hypot(b.x - a.x, b.y - a.y);
+      if (px < 1e-3) return;
+      const metersPerPx = 1000 / px;
       const height = Math.max(REAL_HEIGHT_M, SCREEN_HEIGHT_PX * metersPerPx);
       if (Math.abs(height / current - 1) < 0.15) return;
       current = height;
