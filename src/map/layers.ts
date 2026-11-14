@@ -14,9 +14,9 @@ import { METERS_PER_DEGREE, publicUrl } from './mars';
 import { createModelTextureLayer } from './ModelTextureLayer';
 import { createUpsampledTileLayer } from './UpsampledTileLayer';
 
-export type LayerGroup = 'Base map' | 'Jezero terrain (20 m)' | 'Perseverance';
+type LayerGroup = 'Base map' | 'Jezero terrain (20 m)' | 'Perseverance';
 
-export type LegendItem = { color: string; label: string };
+type LegendItem = { color: string; label: string };
 
 export type LayerDef = {
   id: string;
@@ -83,12 +83,12 @@ export const LAYERS: LayerDef[] = [
     visible: false,
     kind: 'artistic',
     resolution: '~2.6 km/px (8192 × 4096)',
-    description: 'The color texture of public/models/mars-8k.glb. For looks, not for analysis.',
+    description: 'An artist\'s color texture of Mars (public/models/mars-8k.jpg). Not NASA data: for looks, not for analysis.',
     source: {
       name: '"Mars the Red Planet" by DURVESH123, CC BY',
       url: 'https://sketchfab.com/3d-models/mars-the-red-planet-free-7cf3b31ca60f45cc8e52f7fa863ad09a',
     },
-    create: () => createModelTextureLayer(publicUrl('models/mars-8k.glb')),
+    create: () => createModelTextureLayer(publicUrl('models/mars-8k.jpg')),
   },
   {
     id: 'ctx-mosaic',
@@ -178,10 +178,7 @@ export const LAYERS: LayerDef[] = [
       marsGeoJSONLayer({
         url: publicUrl('data/jezero/m20_traverse.geojson'),
         geometryType: 'polyline',
-        fields: [
-          { name: 'sol', type: 'integer' },
-          { name: 'length_m', type: 'double' },
-        ],
+        fields: [],
         elevationInfo: { mode: 'on-the-ground' },
         renderer: new SimpleRenderer({ symbol: { type: 'simple-line', color: [255, 255, 255, 0.95], width: 2 } }),
       }),
@@ -193,20 +190,14 @@ export const LAYERS: LayerDef[] = [
     visible: false,
     kind: 'data',
     resolution: '708 end-of-drive positions',
-    description: 'Where Perseverance stopped after each drive, with its elevation and distance driven so far.',
+    description: 'Where Perseverance stopped after each drive.',
     source: { name: 'NASA/JPL-Caltech Mars 2020 (MMGIS)', url: 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_waypoints.json' },
     legend: [{ color: '#ffd166', label: 'Stop' }],
     create: () =>
       marsGeoJSONLayer({
         url: publicUrl('data/jezero/m20_waypoints.geojson'),
         geometryType: 'point',
-        fields: [
-          { name: 'sol', type: 'integer' },
-          { name: 'site', type: 'integer' },
-          { name: 'drive', type: 'integer' },
-          { name: 'elev_m', type: 'double' },
-          { name: 'dist_total_m', type: 'double' },
-        ],
+        fields: [],
         elevationInfo: { mode: 'on-the-ground' },
         renderer: new SimpleRenderer({
           symbol: { type: 'simple-marker', size: 5, color: [255, 209, 102], outline: { color: [30, 20, 10], width: 0.5 } },
@@ -219,5 +210,5 @@ export const LAYERS: LayerDef[] = [
  * The 3D ground outside Jezero: NASA MGS MOLA elevation (463 m), meters above the MOLA areoid,
  * hosted by Esri (source: USGS, NASA). Refined by the Jezero 20 m DTM; see JezeroElevationLayer.
  */
-export const GLOBAL_ELEVATION_URL = `${ASTRO}/MOLA/ImageServer`;
+const GLOBAL_ELEVATION_URL = `${ASTRO}/MOLA/ImageServer`;
 export const globalElevationLayer = () => new ElevationLayer({ url: GLOBAL_ELEVATION_URL });

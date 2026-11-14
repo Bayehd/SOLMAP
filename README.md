@@ -31,7 +31,7 @@ npm run build
 |---|---|---|---|
 | Viking color mosaic (MDIM 2.1) | USGS / NASA Ames, hosted by Esri | 232 m/px | data |
 | CTX image mosaic | Murray Lab, Caltech (MRO CTX), hosted by Esri | ~5 m/px | data |
-| SOLMAP model texture | `public/models/mars-8k.glb` | ~2.6 km/px | artistic |
+| SOLMAP model texture | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
@@ -67,14 +67,14 @@ It downloads the USGS DTM and the NASA rover GeoJSON (cached in `scripts/.cache/
   overviews, LERC-compressed with at most 1 cm (or 0.01°) error. The DTM's equirectangular
   projection (standard parallel 0°) converts to lon/lat by an exact rescale, so no value is
   resampled. The CRS is stored as an Esri WKT, the only non-EPSG form ArcGIS reads.
-- `m20_traverse.geojson`, `m20_waypoints.geojson`: the rover data, trimmed to the fields used.
+- `m20_traverse.geojson`, `m20_waypoints.geojson`: the rover path and stops, geometry only.
 
 It checks the DTM against the published elevation of the Perseverance landing site
 (−2569.9 m; the DTM gives −2567.2 m) and stops if they differ by more than 15 m.
 
 ## Credits
 
-Mars color texture (`public/models/mars-8k.glb`, 8192 × 4096, re-encoded at JPEG quality 85):
+Mars color texture (`public/models/mars-8k.jpg`, 8192 × 4096, re-encoded at JPEG quality 85):
 "Mars the Red Planet" by DURVESH123, CC Attribution, Sketchfab
 (https://sketchfab.com/3d-models/mars-the-red-planet-free-7cf3b31ca60f45cc8e52f7fa863ad09a).
 The data sources are listed in the table above.

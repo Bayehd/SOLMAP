@@ -1,35 +1,26 @@
-// The color texture of the SOLMAP Mars model (public/models/mars-8k.glb) as a tile layer.
-// The texture is a full-planet equirectangular image, so each tile is a crop of it.
+// The SOLMAP Mars texture (public/models/mars-8k.jpg) as a tile layer.
+// It is a full-planet equirectangular image, so each tile is a crop of it.
 import BaseTileLayer, { type BaseTileLayerProperties } from '@arcgis/core/layers/BaseTileLayer';
 import Extent from '@arcgis/core/geometry/Extent';
 import { marsSR, marsTileInfo, tileExtent } from './mars';
 
 /**
- * The model's texture is stored south-up (row 0 is the south pole), with its left edge at 180°W.
+ * The texture is stored south-up (row 0 is the south pole), with its left edge at 180°W.
  * Flip this if a different texture appears upside down against the MDIM basemap.
  */
 const TEXTURE_SOUTH_UP = true;
 
-/** Reads the first image embedded in a GLB file. */
-async function loadGlbImage(url: string): Promise<ImageBitmap> {
-  const buf = await (await fetch(url)).arrayBuffer();
-  const view = new DataView(buf);
-  if (view.getUint32(0, true) !== 0x46546c67) throw new Error(`${url} is not a GLB file`);
-  const jsonLen = view.getUint32(12, true);
-  const json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jsonLen)));
-  const binStart = 20 + jsonLen + 8;
-  const image = json.images?.[0];
-  if (!image) throw new Error(`${url} has no embedded image`);
-  const bv = json.bufferViews[image.bufferView];
-  const bytes = new Uint8Array(buf, binStart + (bv.byteOffset ?? 0), bv.byteLength);
-  return createImageBitmap(new Blob([bytes], { type: image.mimeType }));
+async function loadImage(url: string): Promise<ImageBitmap> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not load ${url} (${res.status})`);
+  return createImageBitmap(await res.blob());
 }
 
-export function createModelTextureLayer(glbUrl: string, props: BaseTileLayerProperties = {}): BaseTileLayer {
+export function createModelTextureLayer(imageUrl: string, props: BaseTileLayerProperties = {}): BaseTileLayer {
   let bitmap: Promise<ImageBitmap> | null = null;
   const Layer = BaseTileLayer.createSubclass({
     fetchTile(level: number, row: number, col: number) {
-      bitmap ??= loadGlbImage(glbUrl);
+      bitmap ??= loadImage(imageUrl);
       return bitmap.then((img) => {
         const size = 512;
         const canvas = document.createElement('canvas');

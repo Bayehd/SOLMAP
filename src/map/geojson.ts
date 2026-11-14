@@ -14,10 +14,10 @@ type Geometry =
   | { type: 'MultiLineString'; coordinates: number[][][] };
 type FeatureCollection = { features: { properties: Record<string, unknown> | null; geometry: Geometry | null }[] };
 
-export type MarsGeoJSONOptions = {
+type MarsGeoJSONOptions = {
   url: string;
   geometryType: 'point' | 'polyline';
-  /** Attribute fields to keep, with their types. Other properties are dropped. */
+  /** Attribute fields to keep, with their types (empty for geometry only). Other properties are dropped. */
   fields: { name: string; type: 'integer' | 'double' | 'string'; alias?: string }[];
 } & Omit<FeatureLayerProperties, 'source' | 'fields' | 'geometryType' | 'spatialReference' | 'url'>;
 

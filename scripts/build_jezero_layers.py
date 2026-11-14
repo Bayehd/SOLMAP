@@ -154,17 +154,15 @@ def build_rover() -> None:
             if not pts or pts[-1] != c:
                 pts.append(c)
         if len(pts) >= 2:
-            p = f['properties']
-            lines.append({'type': 'Feature', 'properties': {'sol': p.get('sol'), 'length_m': p.get('length')},
+            lines.append({'type': 'Feature', 'properties': {},
                           'geometry': {'type': 'LineString', 'coordinates': pts}})
+    # Geometry only: the app shows no attributes. Add fields here (and in src/map/layers.ts) when needed.
     points = []
     for f in waypoints['features']:
         p = f['properties']
-        points.append({'type': 'Feature',
-                       'properties': {'sol': p.get('sol'), 'site': p.get('site'), 'drive': p.get('drive'),
-                                      'elev_m': p.get('elev_geoid'), 'dist_total_m': p.get('dist_total_m')},
+        points.append({'type': 'Feature', 'properties': {},
                        'geometry': {'type': 'Point', 'coordinates': [round(p['lon'], 7), round(p['lat'], 7)]}})
-    last_sol = max(p['properties']['sol'] or 0 for p in points)
+    last_sol = max(f['properties'].get('sol') or 0 for f in waypoints['features'])
 
     for name, feats, label in [('m20_traverse.geojson', lines, traverse.get('name')),
                                ('m20_waypoints.geojson', points, waypoints.get('name'))]:
