@@ -11,6 +11,9 @@
 }
 .home[data-hidden="true"] { opacity: 0; pointer-events: none; }
 .home-stars { position: absolute; top: 0; left: 0; width: 1px; height: 1px; border-radius: 50%; }
+.home-stars-big { animation: home-twinkle 4s ease-in-out infinite alternate; }
+@keyframes home-twinkle { from { opacity: 0.55; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .home-stars-big { animation: none; } }
 
 .home-content {
   position: absolute;
@@ -57,8 +60,8 @@
   position: fixed;
   z-index: 30;
   pointer-events: none;
-  left: 80vw;
-  top: 78vh;
+  left: var(--rx, 80vw); /* --rx/--ry/--h are set when the rocket leaves from the Mars map */
+  top: var(--ry, 78vh);
   height: var(--h);
   aspect-ratio: 100 / 800;
   transform: translate(-50%, -87.5%); /* anchor at the nozzle exits (y = 700 of 800) */
@@ -127,6 +130,18 @@
 
 @media (max-width: 640px) {
   .home { --home-rocket-x: 86vw; --home-rocket-y: 88vh; }
-  .rocket { --h: min(46vh, 280px); left: 86vw; top: 88vh; }
+  .rocket { --h: min(46vh, 280px); left: var(--rx, 86vw); top: var(--ry, 88vh); }
   .home-content { top: 40%; max-width: calc(72vw - 16px); }
 }
+
+/* ---------- Curtain between planets: black with stars, fades in while the rocket climbs ---------- */
+.curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.9s ease;
+}
+.curtain[data-on="true"] { opacity: 1; pointer-events: auto; transition-delay: 0.8s; }

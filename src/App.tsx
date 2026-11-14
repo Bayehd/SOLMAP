@@ -1,6 +1,9 @@
 // Home page -> launch -> fly to Jezero -> rocket lands at the landing site.
-import { useEffect, useMemo, useRef, useState } from 'react';
+// From the map, "Go to Earth" sends the rocket to the Earth page; "Back to Mars" flies home again
+// and the sky crane lowers the rover back at Jezero.
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { MapApp } from './map/MapApp';
+import { EarthApp } from './earth/EarthApp';
 import { Rocket } from './home/Rocket';
 import { Lander } from './home/Lander';
 import type { RoverControl } from './map/rover';
@@ -10,6 +13,12 @@ import './home/home.css';
 // landing: the sky crane brings the 3D rover down onto Jezero (timed by <Lander>)
 // done: the rover stays on the terrain, just the map
 type Phase = 'idle' | 'ignite' | 'launch' | 'waiting' | 'landing' | 'done';
+
+// Trip between planets: ignite -> launch (Atlas V lifts off, black star curtain fades in)
+// -> transit (planets swapped; the curtain stays until the new globe has loaded) -> none.
+type World = 'mars' | 'earth';
+type Trip = 'none' | 'ignite' | 'launch' | 'transit';
+type Pad = { x: number; y: number };
 
 const IGNITE_MS = 900;
 const LAUNCH_MS = 2400;
@@ -24,6 +33,15 @@ export function App() {
   const [mapReady, setMapReady] = useState(false);
   const [instant, setInstant] = useState(false); // reduced motion: straight to the map
   const roverControl = useRef<RoverControl | null>(null);
+  const [world, setWorld] = useState<World>('mars');
+  const [trip, setTrip] = useState<Trip>('none');
+  const [pad, setPad] = useState<Pad | null>(null); // where the rocket stands when it leaves the Mars map
+  const [earthReady, setEarthReady] = useState(false);
+  const [fromEarth, setFromEarth] = useState(false); // coming back from Earth: no home page, just the landing
+  const worldRef = useRef(world);
+  worldRef.current = world;
+  const instantRef = useRef(instant);
+  instantRef.current = instant;
 
   // Phase timers.
   useEffect(() => {
@@ -37,6 +55,51 @@ export function App() {
     return () => clearTimeout(t);
   }, [phase]);
 
+  // Trip timers: ignite -> launch -> transit.
+  const enterTransit = () => {
+    setTrip('transit');
+    setEarthReady(false);
+    if (worldRef.current === 'mars') {
+      setWorld('earth');
+      setMapMounted(false); // free the Mars globe while we are away
+      setMapReady(false);
+    } else {
+      setWorld('mars');
+      setMapMounted(true);
+      setMapReady(false);
+      setFromEarth(true);
+      setPhase(instantRef.current ? 'done' : 'waiting'); // 'waiting' -> fly down, then the sky-crane landing as on the first visit
+    }
+  };
+  useEffect(() => {
+    const next: Partial<Record<Trip, [Trip, number]>> = { ignite: ['launch', IGNITE_MS], launch: ['transit', LAUNCH_MS] };
+    const step = next[trip];
+    if (!step) return;
+    const t = setTimeout(() => (step[0] === 'transit' ? enterTransit() : setTrip(step[0])), step[1]);
+    return () => clearTimeout(t);
+  }, [trip]);
+
+  // The trip ends when the planet we are heading to has loaded.
+  useEffect(() => {
+    if (trip !== 'transit') return;
+    if (world === 'earth' && earthReady) setTrip('none');
+    else if (world === 'mars' && !instant && mapReady) setTrip('none');
+    else if (world === 'mars' && instant) {
+      const t = setTimeout(() => setTrip('none'), 800);
+      return () => clearTimeout(t);
+    }
+  }, [trip, world, earthReady, mapReady, instant]);
+
+  useEffect(() => {
+    if (phase === 'done') setFromEarth(false);
+  }, [phase]);
+
+  const startTrip = (p: Pad | null) => {
+    setPad(p);
+    if (reducedMotion()) enterTransit();
+    else setTrip('ignite');
+  };
+
   const launch = () => {
     setMapMounted(true);
     if (reducedMotion()) {
@@ -45,23 +108,39 @@ export function App() {
     } else setPhase('ignite');
   };
 
+  const tripFlying = trip === 'ignite' || trip === 'launch';
+  const rocketPhase = tripFlying ? trip : phase;
+  const rocketStyle = tripFlying && pad ? ({ '--rx': `${pad.x}px`, '--ry': `${pad.y}px`, '--h': 'min(46vh, 340px)' } as CSSProperties) : undefined;
+  const showHome = !fromEarth && ROCKET_PHASES.includes(phase);
+  const showRocket = tripFlying || showHome;
+  const curtain = trip === 'launch' || trip === 'transit';
+
   const homeVisible = !instant && (phase === 'idle' || phase === 'ignite' || phase === 'launch' || (phase === 'waiting' && !mapReady));
   const fly = phase === 'waiting' && mapReady;
 
   const stars = useMemo(() => {
-    // Sparse, dim stars as one box-shadow so the page stays black.
-    const s: string[] = [];
-    for (let i = 0; i < 140; i++) {
-      const a = (0.15 + Math.random() * 0.45).toFixed(2);
-      s.push(`${(Math.random() * 100).toFixed(2)}vw ${(Math.random() * 100).toFixed(2)}vh 0 ${Math.random() < 0.1 ? 0.6 : 0}px rgba(255,255,255,${a})`);
-    }
-    return s.join(',');
+    // Star field as box-shadows, dense and bright enough to read like the space behind the globe.
+    // "small" is a lot of faint 1px stars; "big" is a few brighter, larger stars that twinkle (see home.css).
+    const make = (count: number, minAlpha: number, maxAlpha: number, spread: () => number) => {
+      const s: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const a = (minAlpha + Math.random() * (maxAlpha - minAlpha)).toFixed(2);
+        s.push(`${(Math.random() * 100).toFixed(2)}vw ${(Math.random() * 100).toFixed(2)}vh 0 ${spread().toFixed(2)}px rgba(255,255,255,${a})`);
+      }
+      return s.join(',');
+    };
+    return {
+      small: make(450, 0.3, 0.85, () => 0),
+      big: make(70, 0.7, 1, () => 0.4 + Math.random() * 0.6),
+    };
   }, []);
 
   return (
     <>
-      {mapMounted && (
+      {world === 'mars' && mapMounted && (
         <MapApp
+          onTravel={startTrip}
+          canTravel={phase === 'done' && trip === 'none'}
           showRover={instant || phase === 'landing' || phase === 'done'}
           roverControl={roverControl}
           intro={
@@ -72,9 +151,12 @@ export function App() {
         />
       )}
 
-      {ROCKET_PHASES.includes(phase) && (
+      {world === 'earth' && <EarthApp onReady={() => setEarthReady(true)} onBack={() => startTrip(null)} canLeave={trip === 'none'} />}
+
+      {showHome && (
         <div className="home" data-hidden={!homeVisible}>
-          <div className="home-stars" style={{ boxShadow: stars }} />
+          <div className="home-stars" style={{ boxShadow: stars.small }} />
+          <div className="home-stars home-stars-big" style={{ boxShadow: stars.big }} />
           <main className="home-content">
             <p className="home-kicker">SOLMAP · Mars</p>
             <h1 className="home-title">Choose your landing area</h1>
@@ -90,8 +172,13 @@ export function App() {
         </div>
       )}
 
-      {ROCKET_PHASES.includes(phase) && (
-        <div className="rocket" data-phase={phase}>
+      <div className="curtain" data-on={curtain}>
+        <div className="home-stars" style={{ boxShadow: stars.small }} />
+        <div className="home-stars home-stars-big" style={{ boxShadow: stars.big }} />
+      </div>
+
+      {showRocket && (
+        <div className="rocket" data-phase={rocketPhase} style={rocketStyle}>
           <Rocket />
         </div>
       )}
