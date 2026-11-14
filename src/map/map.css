@@ -39,6 +39,19 @@
   .map-app .probe { top: auto; left: 16px; transform: none; bottom: 80px; }
 }
 
+/* Side view: labels beside the layer stack. */
+.map-app .stack-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.map-app .slab-label {
+  position: absolute; transform: translate(-100%, -50%); display: grid; gap: 2px; min-width: 170px; text-align: right;
+  padding: 0 0 6px; border-bottom: 1px dashed rgba(242, 237, 232, 0.55); white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.map-app .slab-label { pointer-events: auto; cursor: default; transition: border-color 0.15s; }
+.map-app .slab-label span { font-size: 15px; font-weight: 600; transition: font-size 0.15s, color 0.15s; }
+.map-app .slab-label[data-active="true"] { border-bottom-color: var(--accent); }
+.map-app .slab-label[data-active="true"] span { font-size: 17px; color: var(--accent); }
+.map-app .stack-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+
 /* Safest route panel */
 .route-panel .rp-body { margin-top: 8px; display: grid; gap: 8px; }
 .route-panel h3 { margin: 6px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }

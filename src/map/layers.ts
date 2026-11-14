@@ -65,7 +65,7 @@ export const MINERAL_CLASSES = [
 const rgb = (c: readonly number[]) => `rgb(${c.join(',')})`;
 
 /** Elevation colors for the Jezero DTM, low to high (meters). */
-const ELEVATION_RAMP: { at: number; color: number[] }[] = [
+export const ELEVATION_RAMP: { at: number; color: number[] }[] = [
   { at: -2711, color: [43, 24, 92] },
   { at: -2400, color: [44, 104, 160] },
   { at: -2100, color: [74, 168, 120] },

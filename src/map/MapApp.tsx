@@ -1,17 +1,19 @@
-// SOLMAP data map: one ArcGIS Map of Mars in a 3D SceneView, with 3D / Side / Top camera views of Jezero.
+// SOLMAP data map: one ArcGIS Map of Mars in a 3D SceneView, with 3D / Side / Top views of Jezero.
+// Side lifts the data layers off the ground into a stack of separate slabs (layerStack.ts).
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type Layer from '@arcgis/core/layers/Layer';
 import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
 import ArcGISMap from '@arcgis/core/Map';
 import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
-import { whenOnce } from '@arcgis/core/core/reactiveUtils';
+import { watch, whenOnce } from '@arcgis/core/core/reactiveUtils';
 import SceneView from '@arcgis/core/views/SceneView';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import { RoutePanel } from '../route/RoutePanel';
 import { useRoutePlanner } from '../route/useRoutePlanner';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
+import { STACKABLE, createLayerStack, type StackSlab } from './layerStack';
 import { JEZERO_DTM_EXTENT, LANDING_SITE, jezeroExtent, landingExtent, marsSR } from './mars';
 import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
@@ -52,27 +54,20 @@ const CAMERA_VIEWS: { id: CameraView; label: string }[] = [
   { id: 'side', label: 'Side' },
   { id: 'top', label: 'Top' },
 ];
-const JEZERO_CENTER = {
-  lon: (JEZERO_DTM_EXTENT.xmin + JEZERO_DTM_EXTENT.xmax) / 2,
-  lat: (JEZERO_DTM_EXTENT.ymin + JEZERO_DTM_EXTENT.ymax) / 2,
-};
-const SIDE_DISTANCE_DEG = 0.42; // side view: camera this far south of the centre (~25 km) ...
-const SIDE_HEIGHT_M = -2600 + 3500; // ... about 3.5 km above the crater floor ...
-const SIDE_TILT = 84; // ... looking almost level across the crater (90 = horizontal)
+// Side view: the layer stack, seen corner-on from the southwest.
+const SIDE_TILT = 68;
+const SIDE_HEADING = 35;
+const LABEL_GAP_PX = 24; // between the stack and its labels
 const TOP_ZOOM = 0.65; // top view frames this fraction of the Jezero area (smaller = closer)
 
 // Following the rover: each view frames the rover from its angle, closer in.
 const VIEW_TILT: Record<CameraView, number> = { '3d': 55, side: SIDE_TILT, top: 0 };
 const FOLLOW_SCALE = 25_000;
 
-function cameraFor(v: CameraView) {
+/** Camera for the 3D and Top views; the Side view frames the stack once it is built. */
+function cameraFor(v: Exclude<CameraView, 'side'>) {
   if (v === '3d') return { target: jezeroExtent(), tilt: 55, heading: 0 };
-  if (v === 'top') return { target: jezeroExtent().expand(TOP_ZOOM), tilt: 0, heading: 0 };
-  return new Camera({
-    position: new Point({ x: JEZERO_CENTER.lon, y: JEZERO_CENTER.lat - SIDE_DISTANCE_DEG, z: SIDE_HEIGHT_M, spatialReference: marsSR() }),
-    heading: 0,
-    tilt: SIDE_TILT,
-  });
+  return { target: jezeroExtent().expand(TOP_ZOOM), tilt: 0, heading: 0 };
 }
 
 export function MapApp({
@@ -97,6 +92,11 @@ export function MapApp({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<SceneView | null>(null);
   const [cameraView, setCameraView] = useState<CameraView>('3d');
+  const cameraViewRef = useRef(cameraView);
+  cameraViewRef.current = cameraView;
+  const [slabs, setSlabs] = useState<StackSlab[]>([]);
+  const [labelPos, setLabelPos] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [hoveredSlab, setHoveredSlab] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(initialVisibility);
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
@@ -110,7 +110,7 @@ export function MapApp({
   const aimingRef = useRef(false); // an animated goTo onto the rover is running: don't shift the camera under it
 
   // One Map and one set of layers for both views, so a toggle applies to both.
-  const { map, layers, globalElevation, roverLayer, routeLayer } = useMemo(() => {
+  const { map, layers, globalElevation, roverLayer, routeLayer, stack } = useMemo(() => {
     const layers: Record<string, Layer> = {};
     for (const def of LAYERS) {
       const layer = def.create();
@@ -123,20 +123,22 @@ export function MapApp({
     const globalElevation = globalElevationLayer();
     const roverLayer = createRoverLayer();
     const routeLayer = new GraphicsLayer({ id: 'route', title: 'Safest route', elevationInfo: { mode: 'on-the-ground' } });
+    const stack = createLayerStack();
     const map = new ArcGISMap({
-      layers: [...LAYERS.map((d) => layers[d.id]), routeLayer, roverLayer],
+      layers: [...LAYERS.map((d) => layers[d.id]), routeLayer, roverLayer, ...stack.layers],
       ground: { layers: [createJezeroElevationLayer(globalElevation)] },
     });
-    return { map, layers, globalElevation, roverLayer, routeLayer };
+    return { map, layers, globalElevation, roverLayer, routeLayer, stack };
   }, []);
 
   const planner = useRoutePlanner(routeLayer, layers);
   const plannerRef = useRef(planner);
   plannerRef.current = planner;
 
+  // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
-    for (const def of LAYERS) layers[def.id].visible = visibility[def.id];
-  }, [visibility, layers]);
+    for (const def of LAYERS) layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id));
+  }, [visibility, layers, cameraView]);
 
   useEffect(() => {
     const view = new SceneView({
@@ -173,7 +175,7 @@ export function MapApp({
 
     const click = view.on('click', async (event) => {
       const p = event.mapPoint;
-      if (!p) return;
+      if (!p || cameraViewRef.current === 'side') return; // a click there lands on a slab, not the ground
       const point = new Point({ x: p.longitude ?? p.x, y: p.latitude ?? p.y, spatialReference: marsSR() });
       if (plannerRef.current.pick(point.x, point.y)) return; // picking a route point: don't open the probe
       const inDtm =
@@ -220,8 +222,90 @@ export function MapApp({
   }, [map, layers, globalElevation, roverLayer]);
 
   useEffect(() => {
-    roverLayer.visible = showRover;
-  }, [showRover, roverLayer]);
+    roverLayer.visible = showRover && cameraView !== 'side'; // hidden under the stack
+  }, [showRover, roverLayer, cameraView]);
+
+  // Side view: one slab per checked data layer, elevation on top (see layerStack.ts). Framed once on entry.
+  const stackIds = LAYERS.filter((l) => STACKABLE.has(l.id) && visibility[l.id]).map((l) => l.id).join(',');
+  const baseIds = LAYERS.filter((l) => l.group === 'Base map' && visibility[l.id]).map((l) => l.id).join(','); // drawn on every slab
+  const framed = useRef(false);
+  useEffect(() => {
+    const side = cameraView === 'side';
+    for (const l of stack.layers) l.visible = side;
+    // Keep the stack clear of the title card (top left), where its labels go.
+    if (viewRef.current) viewRef.current.padding = { top: side ? 160 : 0, left: side ? 120 : 0, right: 0, bottom: 0 };
+    if (!side) {
+      framed.current = false;
+      setSlabs([]);
+      return;
+    }
+    let cancelled = false;
+    stack
+      .update(stackIds ? stackIds.split(',') : [], baseIds ? baseIds.split(',').map((id) => layers[id]) : [])
+      .then((placed) => {
+        if (cancelled) return;
+        setSlabs(placed);
+        const view = viewRef.current;
+        if (framed.current || !view || !placed.length || followRef.current) return;
+        framed.current = true;
+        view.goTo({ target: stack.stack.graphics.toArray(), heading: SIDE_HEADING, tilt: SIDE_TILT }, { duration: 1500 }).catch(() => {});
+      })
+      .catch((err) => console.error('Could not build the layer stack', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [cameraView, stackIds, baseIds, stack, layers]);
+
+  // Side view: the slab under the mouse (or whose label is under it) grows a little.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (cameraView !== 'side' || !view) {
+      setHoveredSlab(null);
+      return;
+    }
+    let pending = false;
+    const move = view.on('pointer-move', (event) => {
+      if (pending) return; // one hit test at a time
+      pending = true;
+      view
+        .hitTest(event, { include: [stack.stack] })
+        .then((hit) => {
+          let id: string | null = null;
+          for (const r of hit.results) {
+            if (r.type === 'graphic' && r.graphic.attributes?.slab) {
+              id = r.graphic.attributes.slab; // the nearest slab under the mouse
+              break;
+            }
+          }
+          setHoveredSlab(id);
+        })
+        .catch(() => {})
+        .finally(() => (pending = false));
+    });
+    const leave = view.on('pointer-leave', () => setHoveredSlab(null));
+    return () => {
+      move.remove();
+      leave.remove();
+    };
+  }, [cameraView, stack]);
+  useEffect(() => stack.highlight(hoveredSlab), [hoveredSlab, stack]);
+
+  // Slab labels sit to the left of the stack (the layer panel is on the right), level with each slab.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (cameraView !== 'side' || !view || !slabs.length) {
+      setLabelPos([]);
+      return;
+    }
+    const place = () => {
+      const screen = slabs.map((s) => ({ id: s.id, pts: s.corners.flatMap((c) => view.toScreen(c) ?? []) }));
+      const left = Math.min(...screen.flatMap((s) => s.pts.map((q) => q.x)));
+      if (!Number.isFinite(left)) return;
+      setLabelPos(screen.map((s) => ({ id: s.id, x: left - LABEL_GAP_PX, y: s.pts.reduce((a, q) => a + q.y, 0) / s.pts.length })));
+    };
+    const handle = watch(() => [view.camera, view.ready], place, { initial: true });
+    return () => handle.remove();
+  }, [cameraView, slabs]);
 
   // Intro flight: globe -> Jezero, slow enough to read as a descent.
   const fly = intro?.fly ?? false;
@@ -266,7 +350,7 @@ export function MapApp({
   const showView = (v: CameraView) => {
     setCameraView(v);
     if (followRef.current) void aimAtRover(VIEW_TILT[v], 0);
-    else viewRef.current?.goTo(cameraFor(v), { duration: 1500 }).catch(() => {});
+    else if (v !== 'side') viewRef.current?.goTo(cameraFor(v), { duration: 1500 }).catch(() => {}); // side: framed by the stack effect
   };
 
   const toggleFollow = () => {
@@ -335,6 +419,27 @@ export function MapApp({
       </div>
       <RoutePanel planner={planner} />
       </div>
+
+      {cameraView === 'side' && (
+        <div className="stack-labels" aria-hidden="true">
+          {labelPos.map((p) => {
+            const s = slabs.find((x) => x.id === p.id)!;
+            return (
+              <div
+                key={p.id}
+                className="slab-label"
+                data-active={hoveredSlab === p.id}
+                style={{ left: p.x, top: p.y }}
+                onMouseEnter={() => setHoveredSlab(p.id)}
+                onMouseLeave={() => setHoveredSlab(null)}
+              >
+                <span>{s.title}</span>
+              </div>
+            );
+          })}
+          {!slabs.length && <p className="stack-hint muted small">Check a data layer to add it to the stack.</p>}
+        </div>
+      )}
 
       <div className="map-right">
       <div className="layer-panel panel" data-open={panelOpen}>
