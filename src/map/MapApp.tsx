@@ -11,8 +11,8 @@ import SceneView from '@arcgis/core/views/SceneView';
 import type Viewpoint from '@arcgis/core/Viewpoint';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
-import { JEZERO_DTM_EXTENT, jezeroExtent, landingExtent, marsSR, marsTileInfo } from './mars';
-import { ROVER_CREDIT, attachRover, createRoverLayer, type RoverControl } from './rover';
+import { JEZERO_DTM_EXTENT, LANDING_SITE, jezeroExtent, landingExtent, marsSR, marsTileInfo } from './mars';
+import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './map.css';
 
@@ -41,9 +41,6 @@ export type MapIntro = {
   onArrive: () => void; // the camera has reached Jezero
 };
 
-// Perseverance's landing site (Octavia E. Butler Landing); the rocket takes off from here when it is on screen.
-const LANDING_SITE = { lon: 77.4509, lat: 18.4447, elevation: -2568 };
-
 const globeCamera = () =>
   new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
 
@@ -58,7 +55,7 @@ export function MapApp({
   showRover?: boolean;
   /** Filled while the 3D view is up, for the landing animation. */
   roverControl?: RefObject<RoverControl | null>;
-  /** "Go to Earth" was clicked. pad = screen position of the landing site, or null if it is off screen. */
+  /** "Go to Earth" was clicked. pad = screen position of the rover, or null if it is off screen. */
   onTravel?: (pad: { x: number; y: number } | null) => void;
   canTravel?: boolean;
 } = {}) {
@@ -73,6 +70,8 @@ export function MapApp({
   const [visibility, setVisibility] = useState<Record<string, boolean>>(initialVisibility);
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
+  const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
+  const roverRef = useRef<ReturnType<typeof attachRover> | null>(null);
 
   // One Map and one set of layers for both views, so a toggle applies to both.
   const { map, layers, globalElevation, roverLayer } = useMemo(() => {
@@ -110,8 +109,10 @@ export function MapApp({
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
     view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
     // The 3D model is a 3D-only symbol; the 2D map doesn't show it.
-    const rover = view instanceof SceneView ? attachRover(view, roverLayer) : null;
+    const rover = view instanceof SceneView ? attachRover(view, roverLayer, setDrive) : null;
+    roverRef.current = rover;
     if (roverControlRef.current) roverControlRef.current.current = rover;
+    if (!rover) setDrive((d) => ({ ...d, playing: false }));
 
     view.when(() => {
       if (viewpointRef.current) view.viewpoint = viewpointRef.current;
@@ -160,6 +161,7 @@ export function MapApp({
       if (view.ready) viewpointRef.current = view.viewpoint?.clone() ?? null;
       click.remove();
       rover?.remove();
+      if (roverRef.current === rover) roverRef.current = null;
       if (roverControlRef.current?.current === rover) roverControlRef.current.current = null;
       // Detach the shared Map first: destroying a view also destroys its map and layers.
       view.map = null;
@@ -205,9 +207,15 @@ export function MapApp({
     else view?.goTo({ center: [77.4, 18.4], scale: 60_000_000 });
   };
 
-  const goEarth = () => {
+  // The rocket takes off from wherever the rover is (the landing site until it has driven).
+  const goEarth = async () => {
     const view = viewRef.current;
-    const site = new Point({ x: LANDING_SITE.lon, y: LANDING_SITE.lat, z: LANDING_SITE.elevation, spatialReference: marsSR() });
+    const { lon, lat } = roverRef.current?.position() ?? { lon: LANDING_SITE.lon, lat: LANDING_SITE.lat };
+    const ground = await map.ground
+      .queryElevation(new Point({ x: lon, y: lat, spatialReference: marsSR() }))
+      .then((r) => (r.geometry as Point).z ?? 0)
+      .catch(() => 0);
+    const site = new Point({ x: lon, y: lat, z: ground, spatialReference: marsSR() });
     const p = view instanceof SceneView ? view.toScreen(site) : view?.toScreen(site);
     const onScreen = p && view && p.x > 0 && p.y > 0 && p.x < view.width && p.y < view.height;
     onTravel?.(onScreen ? { x: p.x, y: p.y } : null);
@@ -243,6 +251,19 @@ export function MapApp({
             Whole planet
           </button>
         </div>
+        {showRover && mode === '3d' && (
+          <div className="row drive-row">
+            <button className="btn" onClick={() => roverRef.current?.toggleDrive()} disabled={!canTravel || !drive.ready}>
+              {drive.playing ? 'Pause' : drive.km > 0 && drive.km < drive.totalKm ? 'Resume drive' : 'Drive route'}
+            </button>
+            <button className="btn" onClick={() => roverRef.current?.resetDrive()} disabled={!canTravel || !drive.ready || drive.km === 0}>
+              Reset
+            </button>
+            <span className="muted small" aria-live="off">
+              {drive.ready ? `${drive.km.toFixed(1)} / ${drive.totalKm.toFixed(1)} km` : 'Loading route…'}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="map-right">

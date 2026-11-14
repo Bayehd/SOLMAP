@@ -42,8 +42,9 @@ export function tileExtent(level: number, row: number, col: number) {
 export const JEZERO_DTM_EXTENT = { xmin: 77.16047, ymin: 18.21103, xmax: 77.69898, ymax: 18.72119 };
 export const jezeroExtent = () => new Extent({ ...JEZERO_DTM_EXTENT, spatialReference: marsSR() });
 
-/** Octavia E. Butler Landing, where Perseverance touched down on 18 February 2021. */
-export const LANDING_SITE = { lon: 77.4508, lat: 18.4447 };
+/** Octavia E. Butler Landing, where Perseverance touched down on 18 February 2021:
+ *  the first point of the traverse (public/data/jezero/m20_traverse.geojson), so the rover lands on its route. */
+export const LANDING_SITE = { lon: 77.4508857, lat: 18.4446271 };
 /** The Jezero DTM extent, re-centred on the landing site: where the intro flight ends. */
 export const landingExtent = () => {
   const w = (JEZERO_DTM_EXTENT.xmax - JEZERO_DTM_EXTENT.xmin) / 2;
