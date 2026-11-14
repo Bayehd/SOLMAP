@@ -2,17 +2,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MapApp } from './map/MapApp';
 import { Rocket } from './home/Rocket';
+import { Lander } from './home/Lander';
 import './home/home.css';
 
-// idle: on the pad · ignite: engine starts · launch: lifts off the home page
-// waiting: off-screen while the camera flies · approach: repositioned above the site (no transition)
-// descend: powered landing · landed: engine off · done: rocket faded out
-type Phase = 'idle' | 'ignite' | 'launch' | 'waiting' | 'approach' | 'descend' | 'landed' | 'done';
+// Rocket: idle (on the pad) · ignite · launch (boosters separate on the way up) · waiting (off-screen while the camera flies)
+// Lander: approach (placed above the site, no transition) · descend (powered descent, rover tucked in)
+//         · lower (sky crane lowers the rover) · flyaway (bridles cut, descent stage leaves) · landed (rover raises its mast)
+// done: everything gone, just the map
+type Phase = 'idle' | 'ignite' | 'launch' | 'waiting' | 'approach' | 'descend' | 'lower' | 'flyaway' | 'landed' | 'done';
 
 const IGNITE_MS = 900;
-const LAUNCH_MS = 1500;
-const DESCEND_MS = 3200;
-const LANDED_MS = 2600;
+const LAUNCH_MS = 2400;
+const DESCEND_MS = 3000;
+const LOWER_MS = 1800;
+const FLYAWAY_MS = 1600;
+const LANDED_MS = 3200;
+
+const ROCKET_PHASES: Phase[] = ['idle', 'ignite', 'launch', 'waiting'];
+const LANDER_PHASES: Phase[] = ['approach', 'descend', 'lower', 'flyaway', 'landed'];
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -27,7 +34,9 @@ export function App() {
     const next: Partial<Record<Phase, [Phase, number]>> = {
       ignite: ['launch', IGNITE_MS],
       launch: ['waiting', LAUNCH_MS],
-      descend: ['landed', DESCEND_MS],
+      descend: ['lower', DESCEND_MS],
+      lower: ['flyaway', LOWER_MS],
+      flyaway: ['landed', FLYAWAY_MS],
       landed: ['done', LANDED_MS],
     };
     const step = next[phase];
@@ -72,6 +81,7 @@ export function App() {
     <>
       {mapMounted && (
         <MapApp
+          showRover={instant || phase === 'landed' || phase === 'done'}
           intro={
             instant
               ? undefined
@@ -80,7 +90,7 @@ export function App() {
         />
       )}
 
-      {(phase === 'idle' || phase === 'ignite' || phase === 'launch' || phase === 'waiting') && (
+      {ROCKET_PHASES.includes(phase) && (
         <div className="home" data-hidden={!homeVisible}>
           <div className="home-stars" style={{ boxShadow: stars }} />
           <main className="home-content">
@@ -98,10 +108,14 @@ export function App() {
         </div>
       )}
 
-      {phase !== 'done' && (
+      {ROCKET_PHASES.includes(phase) && (
         <div className="rocket" data-phase={phase}>
           <Rocket />
-          <div className="rocket-dust" />
+        </div>
+      )}
+      {LANDER_PHASES.includes(phase) && (
+        <div className="lander" data-phase={phase}>
+          <Lander />
         </div>
       )}
     </>

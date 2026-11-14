@@ -1,30 +1,40 @@
-// A compact launcher drawn in SVG: shaded cylindrical body, nose cone, fins, engine bell,
-// fold-out landing legs and an animated exhaust plume. The ground-contact point is at y = 210
-// of the 60×300 viewBox (70% of the height); home.css anchors the rocket by that point.
+// An Atlas V 541, the launcher of NASA's Curiosity and Perseverance Mars rovers, drawn in SVG:
+// white 5 m payload fairing, Centaur upper stage, orange-tan foam-insulated core booster,
+// solid rocket boosters, and an animated exhaust plume per nozzle.
+// The ground-contact point is at y = 700 of the 100×800 viewBox (87.5%); home.css anchors the rocket by it.
+
+const SRB_X = [16.4, 83.6]; // centres of the two visible solid rocket boosters
+
 export function Rocket() {
   return (
-    <svg className="rocket-svg" viewBox="0 0 60 300" aria-hidden="true">
+    <svg className="rocket-svg" viewBox="0 0 100 800" aria-hidden="true">
       <defs>
-        {/* Horizontal shading so the body reads as a lit cylinder. */}
-        <linearGradient id="rk-body" x1="0" x2="1">
-          <stop offset="0" stopColor="#7d838a" />
-          <stop offset="0.32" stopColor="#ffffff" />
-          <stop offset="0.6" stopColor="#dfe2e6" />
-          <stop offset="1" stopColor="#5f646b" />
+        {/* Horizontal shading per shape, so every cylinder reads as lit from the left. */}
+        <linearGradient id="rk-white" x1="0" x2="1">
+          <stop offset="0" stopColor="#9a9ea4" />
+          <stop offset="0.3" stopColor="#ffffff" />
+          <stop offset="0.62" stopColor="#e6e8eb" />
+          <stop offset="1" stopColor="#80858c" />
         </linearGradient>
-        <linearGradient id="rk-dark" x1="0" x2="1">
-          <stop offset="0" stopColor="#15171a" />
-          <stop offset="0.35" stopColor="#4a4f56" />
-          <stop offset="1" stopColor="#0d0e10" />
+        <linearGradient id="rk-tan" x1="0" x2="1">
+          <stop offset="0" stopColor="#7a5c48" />
+          <stop offset="0.3" stopColor="#d8b8a0" />
+          <stop offset="0.62" stopColor="#c09a80" />
+          <stop offset="1" stopColor="#6a4e3d" />
         </linearGradient>
         <linearGradient id="rk-metal" x1="0" x2="1">
-          <stop offset="0" stopColor="#3a3330" />
-          <stop offset="0.4" stopColor="#9a8f86" />
-          <stop offset="1" stopColor="#2a2523" />
+          <stop offset="0" stopColor="#55575b" />
+          <stop offset="0.35" stopColor="#d4d6d9" />
+          <stop offset="1" stopColor="#3e4044" />
+        </linearGradient>
+        <linearGradient id="rk-tray" x1="0" x2="1">
+          <stop offset="0" stopColor="#6b4a2a" />
+          <stop offset="0.5" stopColor="#b98a52" />
+          <stop offset="1" stopColor="#5a3d22" />
         </linearGradient>
         <linearGradient id="rk-flame" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#ffffff" />
-          <stop offset="0.15" stopColor="#fff3c4" />
+          <stop offset="0.12" stopColor="#fff3c4" />
           <stop offset="0.45" stopColor="#ffb347" />
           <stop offset="0.8" stopColor="#ff5a1f" stopOpacity="0.6" />
           <stop offset="1" stopColor="#ff3d00" stopOpacity="0" />
@@ -35,45 +45,71 @@ export function Rocket() {
         </radialGradient>
       </defs>
 
-      {/* Exhaust (behind everything so the bell overlaps it). */}
+      {/* Exhaust (behind the nozzles). Solids burn brighter and longer than the core engine. */}
       <g className="rocket-flame">
-        <ellipse cx="30" cy="236" rx="22" ry="34" fill="url(#rk-glow)" />
-        <path d="M21 206 Q18 240 30 292 Q42 240 39 206 Z" fill="url(#rk-flame)" />
-        <path d="M25 206 Q24 226 30 252 Q36 226 35 206 Z" fill="#fffbe8" opacity="0.9" />
+        <ellipse cx="50" cy="735" rx="58" ry="55" fill="url(#rk-glow)" />
+        <path d="M43 700 Q39 735 50 778 Q61 735 57 700 Z" fill="url(#rk-flame)" />
+        <path d="M46.5 700 Q45.5 716 50 734 Q54.5 716 53.5 700 Z" fill="#fffbe8" opacity="0.9" />
       </g>
 
-      {/* Landing legs: pivot at the top, fold flat against the body. */}
-      <g className="rocket-leg rocket-leg-l">
-        <path d="M17 158 L15.5 158 L13.5 214 L16 214 Z" fill="url(#rk-dark)" />
-        <rect x="10" y="212.5" width="8" height="2.5" rx="1" fill="#1d1f22" />
+      {/* Core booster: tan foam insulation with weld seams and the cable tray. */}
+      <rect x="28" y="347" width="44" height="296" fill="url(#rk-tan)" />
+      {[420, 500, 560, 610].map((y) => (
+        <rect key={y} x="28" y={y} width="44" height="0.6" fill="#6a4e3d" opacity="0.45" />
+      ))}
+      <rect x="30.5" y="560" width="3.2" height="78" rx="1" fill="url(#rk-tray)" />
+      {/* Aft skirt and the core engine nozzle */}
+      <path d="M28 641 L72 641 L70 683 L30 683 Z" fill="url(#rk-white)" />
+      <rect x="28" y="641" width="44" height="1.4" fill="#4a3a30" />
+      <path d="M40 646 L50 672 L60 646" fill="none" stroke="#9b7d63" strokeWidth="1.6" />
+      <path d="M44 683 L56 683 L59.5 700 L40.5 700 Z" fill="url(#rk-metal)" />
+
+      {/* Solid rocket boosters, with their own plumes and struts to the core; they separate in flight. */}
+      {SRB_X.map((x) => (
+        <g key={x} className={`rocket-srb rocket-srb-${x < 50 ? 'l' : 'r'}`}>
+          <g className="rocket-flame">
+            <path d={`M${x - 6} 700 Q${x - 10} 745 ${x} 800 Q${x + 10} 745 ${x + 6} 700 Z`} fill="url(#rk-flame)" />
+            <path d={`M${x - 3} 700 Q${x - 4} 722 ${x} 745 Q${x + 4} 722 ${x + 3} 700 Z`} fill="#fffbe8" opacity="0.9" />
+          </g>
+          <path d={`M${x - 10} 508 C${x - 10} 494 ${x - 5} 484 ${x} 482 C${x + 5} 484 ${x + 10} 494 ${x + 10} 508 Z`} fill="url(#rk-white)" />
+          <rect x={x - 10} y="508" width="20" height="175" fill="url(#rk-white)" />
+          <rect x={x - 10} y="508" width="20" height="0.6" fill="#8a8f96" />
+          <path d={`M${x - 4} 683 L${x + 4} 683 L${x + 6.5} 700 L${x - 6.5} 700 Z`} fill="url(#rk-metal)" />
+          {[530, 668].map((y) => (
+            <rect key={y} x={x < 50 ? x + 10 : 72} y={y} width={x < 50 ? 28 - x - 10 : x - 10 - 72} height="2.4" fill="#5c5f64" />
+          ))}
+        </g>
+      ))}
+
+      {/* Centaur upper stage (white) with the black interstage ring below it */}
+      <rect x="28" y="296" width="44" height="49" fill="url(#rk-white)" />
+      <rect x="28" y="343" width="44" height="4" fill="#26211e" />
+      <rect x="28" y="341.5" width="44" height="0.6" fill="#6b6f75" />
+
+      {/* Payload fairing: ogive nose, cylinder, boattail */}
+      <path d="M18 118 C18 72 36 34 47.5 21.5 Q50 18.5 52.5 21.5 C64 34 82 72 82 118 Z" fill="url(#rk-white)" />
+      <rect x="18" y="117.5" width="64" height="150" fill="url(#rk-white)" />
+      <path d="M18 267 L82 267 L72 297 L28 297 Z" fill="url(#rk-white)" />
+      {/* Panel seams */}
+      {[118, 182, 238, 267].map((y) => (
+        <rect key={y} x="18" y={y} width="64" height="0.5" fill="#9ea3aa" opacity="0.7" />
+      ))}
+      {/* Access doors */}
+      <rect x="45" y="184" width="7" height="5" rx="1.6" fill="none" stroke="#b3b8be" strokeWidth="0.6" />
+      <rect x="62" y="202" width="7" height="5" rx="1.6" fill="none" stroke="#b3b8be" strokeWidth="0.6" />
+      {/* Vent-hole rows */}
+      {[229, 250].map((y) =>
+        [21, 24, 27, 30, 33, 36, 39, 61, 64, 67, 70, 73, 76, 79].map((x) =>
+          y === 250 && x > 26 && x < 70 ? null : <rect key={`${x}-${y}`} x={x} y={y} width="0.9" height="2.2" fill="#2a2d31" />,
+        ),
+      )}
+      {/* US flag */}
+      <g transform="translate(20 204)">
+        {Array.from({ length: 7 }, (_, i) => (
+          <rect key={i} y={i * 2.4} width="24" height="1.2" fill="#b22234" />
+        ))}
+        <rect width="10" height="8.4" fill="#3c3b6e" />
       </g>
-      <g className="rocket-leg rocket-leg-r">
-        <path d="M43 158 L44.5 158 L46.5 214 L44 214 Z" fill="url(#rk-dark)" />
-        <rect x="42" y="212.5" width="8" height="2.5" rx="1" fill="#1d1f22" />
-      </g>
-
-      {/* Engine bell */}
-      <path d="M24 192 L36 192 L39.5 208 L20.5 208 Z" fill="url(#rk-metal)" />
-      <rect x="20.5" y="206.5" width="19" height="2" rx="0.8" fill="#1b1716" />
-
-      {/* Fins */}
-      <path d="M18 156 L7 190 L7 197 L18 190 Z" fill="url(#rk-dark)" />
-      <path d="M42 156 L53 190 L53 197 L42 190 Z" fill="url(#rk-dark)" />
-
-      {/* Body + nose cone */}
-      <path d="M18 56 Q19 22 30 4 Q41 22 42 56 Z" fill="url(#rk-body)" />
-      <rect x="18" y="56" width="24" height="137" fill="url(#rk-body)" />
-      {/* Fairing seam, interstage and base bands */}
-      <rect x="18" y="56" width="24" height="1.2" fill="#9aa0a6" />
-      <rect x="18" y="116" width="24" height="9" fill="url(#rk-dark)" />
-      <rect x="18" y="186" width="24" height="7" fill="url(#rk-dark)" />
-      {/* Grid fins at the top of the first stage */}
-      <rect x="15" y="127" width="3" height="6" fill="#2b2e33" />
-      <rect x="42" y="127" width="3" height="6" fill="#2b2e33" />
-      {/* Porthole and vertical lettering stripe */}
-      <circle cx="30" cy="76" r="4.2" fill="#1a2330" stroke="#8a9098" strokeWidth="1.2" />
-      <circle cx="28.6" cy="74.6" r="1.2" fill="#9fc3e6" opacity="0.8" />
-      <rect x="28.7" y="138" width="2.6" height="40" rx="1" fill="#c0392b" opacity="0.85" />
     </svg>
   );
 }

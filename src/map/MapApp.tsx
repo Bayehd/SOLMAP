@@ -11,7 +11,8 @@ import SceneView from '@arcgis/core/views/SceneView';
 import type Viewpoint from '@arcgis/core/Viewpoint';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
-import { JEZERO_DTM_EXTENT, jezeroExtent, marsSR, marsTileInfo } from './mars';
+import { JEZERO_DTM_EXTENT, jezeroExtent, landingExtent, marsSR, marsTileInfo } from './mars';
+import { ROVER_CREDIT, createRoverLayer, keepRoverVisible } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './map.css';
 
@@ -43,7 +44,7 @@ export type MapIntro = {
 const globeCamera = () =>
   new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
 
-export function MapApp({ intro }: { intro?: MapIntro } = {}) {
+export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRover?: boolean } = {}) {
   const introRef = useRef(intro);
   introRef.current = intro;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -55,7 +56,7 @@ export function MapApp({ intro }: { intro?: MapIntro } = {}) {
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
 
   // One Map and one set of layers for both views, so a toggle applies to both.
-  const { map, layers, globalElevation } = useMemo(() => {
+  const { map, layers, globalElevation, roverLayer } = useMemo(() => {
     const layers: Record<string, Layer> = {};
     for (const def of LAYERS) {
       const layer = def.create();
@@ -66,11 +67,12 @@ export function MapApp({ intro }: { intro?: MapIntro } = {}) {
       layers[def.id] = layer;
     }
     const globalElevation = globalElevationLayer();
+    const roverLayer = createRoverLayer();
     const map = new ArcGISMap({
-      layers: LAYERS.map((d) => layers[d.id]),
+      layers: [...LAYERS.map((d) => layers[d.id]), roverLayer],
       ground: { layers: [createJezeroElevationLayer(globalElevation)] },
     });
-    return { map, layers, globalElevation };
+    return { map, layers, globalElevation, roverLayer };
   }, []);
 
   useEffect(() => {
@@ -88,6 +90,8 @@ export function MapApp({ intro }: { intro?: MapIntro } = {}) {
     viewRef.current = view;
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
     view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
+    // The 3D model is a 3D-only symbol; the 2D map doesn't show it.
+    const roverSizing = view instanceof SceneView ? keepRoverVisible(view, roverLayer) : null;
 
     view.when(() => {
       if (viewpointRef.current) view.viewpoint = viewpointRef.current;
@@ -135,12 +139,17 @@ export function MapApp({ intro }: { intro?: MapIntro } = {}) {
     return () => {
       if (view.ready) viewpointRef.current = view.viewpoint?.clone() ?? null;
       click.remove();
+      roverSizing?.remove();
       // Detach the shared Map first: destroying a view also destroys its map and layers.
       view.map = null;
       view.destroy();
       viewRef.current = null;
     };
-  }, [mode, map, layers, globalElevation]);
+  }, [mode, map, layers, globalElevation, roverLayer]);
+
+  useEffect(() => {
+    roverLayer.visible = showRover && mode === '3d';
+  }, [showRover, mode, roverLayer]);
 
   // Intro flight: globe -> Jezero, slow enough to read as a descent.
   const fly = intro?.fly ?? false;
@@ -149,7 +158,7 @@ export function MapApp({ intro }: { intro?: MapIntro } = {}) {
     if (!fly || !(view instanceof SceneView)) return;
     let cancelled = false;
     view
-      .when(() => view.goTo({ target: jezeroExtent(), tilt: 55 }, { duration: 5000, easing: 'cubic-in-out' }))
+      .when(() => view.goTo({ target: landingExtent(), tilt: 55 }, { duration: 5000, easing: 'cubic-in-out' }))
       .catch(() => {}) // interrupted by the user: land anyway
       .then(() => !cancelled && introRef.current?.onArrive());
     return () => {
@@ -182,6 +191,14 @@ export function MapApp({ intro }: { intro?: MapIntro } = {}) {
       <div className="map-card panel">
         <h1>SOLMAP · Jezero Crater</h1>
         <p className="muted small">Real data layers on Mars (GCS Mars 2000). Click the map to read elevation and slope.</p>
+        {showRover && (
+          <p className="muted small">
+            Rover model:{' '}
+            <a className="link" href={ROVER_CREDIT.url} target="_blank" rel="noreferrer">
+              {ROVER_CREDIT.text}
+            </a>
+          </p>
+        )}
         <div className="row">
           <div className="segmented" role="group" aria-label="View">
             {(['3d', '2d'] as Mode[]).map((m) => (
