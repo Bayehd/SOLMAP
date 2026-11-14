@@ -8,6 +8,9 @@ import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
 import { watch, whenOnce } from '@arcgis/core/core/reactiveUtils';
 import SceneView from '@arcgis/core/views/SceneView';
+import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import { RoutePanel } from '../route/RoutePanel';
+import { useRoutePlanner } from '../route/useRoutePlanner';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
 import { STACKABLE, createLayerStack, type StackSlab } from './layerStack';
@@ -107,7 +110,7 @@ export function MapApp({
   const aimingRef = useRef(false); // an animated goTo onto the rover is running: don't shift the camera under it
 
   // One Map and one set of layers for both views, so a toggle applies to both.
-  const { map, layers, globalElevation, roverLayer, stack } = useMemo(() => {
+  const { map, layers, globalElevation, roverLayer, routeLayer, stack } = useMemo(() => {
     const layers: Record<string, Layer> = {};
     for (const def of LAYERS) {
       const layer = def.create();
@@ -119,13 +122,18 @@ export function MapApp({
     }
     const globalElevation = globalElevationLayer();
     const roverLayer = createRoverLayer();
+    const routeLayer = new GraphicsLayer({ id: 'route', title: 'Safest route', elevationInfo: { mode: 'on-the-ground' } });
     const stack = createLayerStack();
     const map = new ArcGISMap({
-      layers: [...LAYERS.map((d) => layers[d.id]), roverLayer, ...stack.layers],
+      layers: [...LAYERS.map((d) => layers[d.id]), routeLayer, roverLayer, ...stack.layers],
       ground: { layers: [createJezeroElevationLayer(globalElevation)] },
     });
-    return { map, layers, globalElevation, roverLayer, stack };
+    return { map, layers, globalElevation, roverLayer, routeLayer, stack };
   }, []);
+
+  const planner = useRoutePlanner(routeLayer, layers);
+  const plannerRef = useRef(planner);
+  plannerRef.current = planner;
 
   // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
@@ -169,6 +177,7 @@ export function MapApp({
       const p = event.mapPoint;
       if (!p || cameraViewRef.current === 'side') return; // a click there lands on a slab, not the ground
       const point = new Point({ x: p.longitude ?? p.x, y: p.latitude ?? p.y, spatialReference: marsSR() });
+      if (plannerRef.current.pick(point.x, point.y)) return; // picking a route point: don't open the probe
       const inDtm =
         point.x >= JEZERO_DTM_EXTENT.xmin && point.x <= JEZERO_DTM_EXTENT.xmax && point.y >= JEZERO_DTM_EXTENT.ymin && point.y <= JEZERO_DTM_EXTENT.ymax;
       const pixel = async (id: string) => {
@@ -370,6 +379,7 @@ export function MapApp({
     <div className="map-app">
       <div ref={containerRef} className="map-view" />
 
+      <div className="map-left">
       <div className="map-card panel">
         <h1>SOLMAP · Jezero Crater</h1>
         <p className="muted small">Real data layers on Mars (GCS Mars 2000). Click the map to read elevation and slope.</p>
@@ -406,6 +416,8 @@ export function MapApp({
             </span>
           </div>
         )}
+      </div>
+      <RoutePanel planner={planner} />
       </div>
 
       {cameraView === 'side' && (
