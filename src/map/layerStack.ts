@@ -1,6 +1,7 @@
-// Side view: a square of Jezero around the rover's route, pulled apart into one slab per data layer and
-// stacked above the ground (an exploded block diagram), so each layer can be seen on its own.
-// Slabs are drawn from the same files as the map layers; the ground under the stack keeps the base map.
+// Side view: the Jezero terrain area (the extent of the 20 m DTM, the colored area on the map) lifted off the
+// ground and pulled apart into one slab per data layer (an exploded block diagram), so each layer can be seen
+// on its own. Every slab shows the base map that is on the ground, with its layer's data on top, drawn from
+// the same files and at the same opacity as on the map.
 import Graphic from '@arcgis/core/Graphic';
 import Extent from '@arcgis/core/geometry/Extent';
 import Mesh from '@arcgis/core/geometry/Mesh';
@@ -12,80 +13,79 @@ import MeshMaterial from '@arcgis/core/geometry/support/MeshMaterial';
 import MeshTexture from '@arcgis/core/geometry/support/MeshTexture';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
+import type Layer from '@arcgis/core/layers/Layer';
+import type TileInfo from '@arcgis/core/layers/support/TileInfo';
 import { ELEVATION_RAMP, LAYERS, MINERAL_CLASSES, SAMPLE_KINDS, SLOPE_CLASSES } from './layers';
-import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
+import { JEZERO_DTM_EXTENT, METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
 
 /** The slab that goes on top of the stack; the others stack from the ground up in catalog order. */
 const TOP_SLAB = 'jezero-elevation';
-/** Center and width of the cut-out: the rover's route from the crater floor up the delta (all inside the 20 m DTM). */
-const CENTER = { lon: 77.34, lat: 18.46 };
-const SLICE_M = 16_000;
+const EXTENT = JEZERO_DTM_EXTENT;
+const CENTER = { lon: (EXTENT.xmin + EXTENT.xmax) / 2, lat: (EXTENT.ymin + EXTENT.ymax) / 2 };
+const WIDTH_M = (EXTENT.xmax - EXTENT.xmin) * METERS_PER_DEGREE * Math.cos((CENTER.lat * Math.PI) / 180);
+const HEIGHT_M = (EXTENT.ymax - EXTENT.ymin) * METERS_PER_DEGREE;
+const SIZE_M = Math.max(WIDTH_M, HEIGHT_M);
 /** Relief on the elevation slab is exaggerated so the delta and crater rim read at this scale. */
 const VERTICAL_EXAGGERATION = 2;
-// Proportions, as fractions of the slice width.
-const THICKNESS = 0.015;
-const GAP = 0.16;
-const LIFT = 0.1; // bottom of the stack above the highest ground in the slice
-const RASTER_PX = 512; // raster samples per side (~31 m)
-const VECTOR_PX = 1024; // texture size for the vector slabs, so thin lines stay sharp
-const RELIEF_STEP = 4; // relief mesh = every 4th raster sample (128 × 128)
-// Slabs are see-through except where they carry data, so the slabs below stay visible.
-const SLAB_FILL = 'rgba(60, 66, 80, 0.3)';
-const SIDE_COLOR = [70, 76, 92, 0.6];
+// Proportions, as fractions of the area's size. The gaps are wide so the slabs below stay in view.
+const THICKNESS = 0.012;
+const GAP = 0.22;
+const LIFT = 0.08; // bottom of the stack above the highest ground
+const TEX_PX = 1536; // slab texture size (~20 m/px)
+const RASTER_PX = 768; // data raster samples per side (~40 m)
+const RELIEF_STEP = 6; // relief mesh = every 6th raster sample (128 × 128)
+const SIDE_COLOR = [70, 76, 92];
+const NO_MAP_COLOR = '#2a2f3a'; // under the base map, where it has no tiles
 
-const HALF_LON = SLICE_M / 2 / (METERS_PER_DEGREE * Math.cos((CENTER.lat * Math.PI) / 180));
-const HALF_LAT = SLICE_M / 2 / METERS_PER_DEGREE;
-const EXTENT = { xmin: CENTER.lon - HALF_LON, xmax: CENTER.lon + HALF_LON, ymin: CENTER.lat - HALF_LAT, ymax: CENTER.lat + HALF_LAT };
-
-/** Layer id → how its slab looks. Layers without an entry (the base maps) stay on the ground. */
-const SLABS: Record<string, (d: SliceData) => SlabArt> = {
-  'jezero-elevation': (d) => ({
-    texture: rasterCanvas((k) => elevationColor(d.dtm[k], d.shade[k])),
+/** Layer id → what its slab draws over the base map. Layers without an entry (the base maps) stay on the ground. */
+const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData) => void; relief?: boolean; detail?: (d: SliceData) => string }> = {
+  'jezero-elevation': {
+    draw: (ctx, d) => rasterOverlay(ctx, (k) => elevationColor(d.dtm[k], d.shade[k])),
     relief: true,
-    detail: `${Math.round(d.min)} to ${Math.round(d.max)} m · ${VERTICAL_EXAGGERATION}× vertical`,
-  }),
-  'jezero-slope': (d) => ({
-    texture: rasterCanvas((k) => {
-      const s = d.slope[k];
-      if (!(s >= 0)) return null;
-      const c = SLOPE_CLASSES.find((c) => s < c.max) ?? SLOPE_CLASSES[SLOPE_CLASSES.length - 1];
-      return c.painted ? c.color : null; // as on the map: walkable ground is left clear
-    }),
-    detail: SLOPE_CLASSES.map((c) => c.label.split(' ')[0]).join(' · '),
-  }),
-  'jezero-minerals': (d) => ({
-    texture: rasterCanvas((k) => MINERAL_CLASSES[d.mineral[k] - 1]?.color ?? null),
-    detail: 'CRISM, uncolored = none detected or no coverage',
-  }),
-  'm20-traverse': (d) => ({
-    texture: vectorCanvas((ctx, xy) => {
+    detail: (d) => `${Math.round(d.min)} to ${Math.round(d.max)} m · ${VERTICAL_EXAGGERATION}× vertical`,
+  },
+  'jezero-slope': {
+    draw: (ctx, d) =>
+      rasterOverlay(ctx, (k) => {
+        const s = d.slope[k];
+        if (!(s >= 0)) return null;
+        const c = SLOPE_CLASSES.find((c) => s < c.max) ?? SLOPE_CLASSES[SLOPE_CLASSES.length - 1];
+        return c.painted ? c.color : null; // as on the map: walkable ground is left clear
+      }),
+    detail: () => SLOPE_CLASSES.filter((c) => c.painted).map((c) => c.label).join(' · '),
+  },
+  'jezero-minerals': {
+    draw: (ctx, d) => rasterOverlay(ctx, (k) => MINERAL_CLASSES[d.mineral[k] - 1]?.color ?? null),
+    detail: () => 'CRISM, uncolored = none detected or no coverage',
+  },
+  'm20-traverse': {
+    draw: (ctx, d) => {
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 8;
+      ctx.lineWidth = 10;
+      ctx.lineJoin = ctx.lineCap = 'round';
       for (const line of d.traverse) {
         ctx.beginPath();
         line.forEach((c, i) => (i ? ctx.lineTo(...xy(c)) : ctx.moveTo(...xy(c))));
         ctx.stroke();
       }
-    }),
-  }),
-  'm20-waypoints': (d) => ({ texture: vectorCanvas((ctx, xy) => d.stops.forEach((c) => dot(ctx, xy(c), 7, '#ffd166'))) }),
-  'm20-samples': (d) => ({
-    texture: vectorCanvas((ctx, xy) =>
-      d.samples.forEach((s) => dot(ctx, xy(s.c), 13, `rgb(${(SAMPLE_KINDS.find((k) => k.label === s.kind) ?? SAMPLE_KINDS[0]).color.join(',')})`)),
-    ),
-  }),
-  'm20-depot': (d) => ({
-    texture: vectorCanvas((ctx, xy) =>
+    },
+  },
+  'm20-waypoints': { draw: (ctx, d) => d.stops.forEach((c) => dot(ctx, xy(c), 7, '#ffd166')) },
+  'm20-samples': {
+    draw: (ctx, d) =>
+      d.samples.forEach((s) => dot(ctx, xy(s.c), 15, `rgb(${(SAMPLE_KINDS.find((k) => k.label === s.kind) ?? SAMPLE_KINDS[0]).color.join(',')})`)),
+  },
+  'm20-depot': {
+    draw: (ctx, d) =>
       d.depot.forEach((c) => {
         const [x, y] = xy(c);
         ctx.fillStyle = '#ff3dc8';
         ctx.beginPath();
-        ctx.moveTo(x, y - 16), ctx.lineTo(x + 16, y), ctx.lineTo(x, y + 16), ctx.lineTo(x - 16, y);
+        ctx.moveTo(x, y - 20), ctx.lineTo(x + 20, y), ctx.lineTo(x, y + 20), ctx.lineTo(x - 20, y);
         ctx.fill();
       }),
-    ),
-    detail: 'tiny at this scale: 10 tubes within ~100 m',
-  }),
+    detail: () => 'tiny at this scale: 10 tubes within ~100 m',
+  },
 };
 
 export const STACKABLE = new Set(Object.keys(SLABS));
@@ -103,7 +103,10 @@ type SliceData = {
   samples: { c: LonLat; kind: string }[];
   depot: LonLat[];
 };
-type SlabArt = { texture: HTMLCanvasElement; relief?: boolean; detail?: string };
+type TiledLayer = Layer & {
+  tileInfo?: TileInfo;
+  fetchTile(level: number, row: number, col: number): Promise<CanvasImageSource>;
+};
 
 /** A slab as placed in the stack, for the labels: its corners at mid-height. */
 export type StackSlab = { id: string; title: string; detail: string; corners: Point[] };
@@ -113,37 +116,49 @@ let data: Promise<SliceData> | null = null;
 export function createLayerStack() {
   const stack = new GraphicsLayer({ id: 'side-stack', title: 'Side view stack', visible: false, elevationInfo: { mode: 'absolute-height' } });
   const footprint = new GraphicsLayer({ id: 'side-footprint', title: 'Side view footprint', visible: false, elevationInfo: { mode: 'on-the-ground' } });
-  let built = new Map<string, SlabArt>(); // textures are kept between rebuilds
+  // The base map image and the slab textures, kept until the base maps change.
+  let base: { key: string; image: Promise<HTMLCanvasElement>; textures: Map<string, HTMLCanvasElement> } | null = null;
 
-  /** Rebuild the stack with these layer ids (TOP_SLAB moves to the top). Returns the slabs placed, top to bottom. */
-  async function update(ids: string[]): Promise<StackSlab[]> {
+  /**
+   * Rebuild the stack with these data layer ids (TOP_SLAB moves to the top) over these base map layers
+   * (bottom to top, as on the ground). Returns the slabs placed, top to bottom.
+   */
+  async function update(ids: string[], baseLayers: Layer[]): Promise<StackSlab[]> {
     data ??= loadSliceData();
-    const d = await data;
+    const key = baseLayers.map((l) => l.id).join(',');
+    if (base?.key !== key) base = { key, image: baseImage(baseLayers), textures: new Map() };
+    const current = base;
+    const [d, map] = await Promise.all([data, current.image]);
     const ordered = ids.filter((id) => SLABS[id] && id !== TOP_SLAB).concat(ids.includes(TOP_SLAB) ? [TOP_SLAB] : []);
-    const art = new Map(ordered.map((id) => [id, built.get(id) ?? SLABS[id](d)]));
-    built = new Map([...built, ...art]);
 
     const graphics: Graphic[] = [];
     const slabs: StackSlab[] = [];
-    const bottom = d.max + LIFT * SLICE_M;
+    const bottom = d.max + LIFT * SIZE_M;
     let z = bottom;
     for (const id of ordered) {
-      const a = art.get(id)!;
-      const t = THICKNESS * SLICE_M;
-      const relief = a.relief ? reliefGrid(d) : null;
-      const height = t + (relief ? (d.max - d.min) * VERTICAL_EXAGGERATION : 0);
-      graphics.push(new Graphic({ geometry: slabMesh(z, t, a.texture, relief), symbol: { type: 'mesh-3d', symbolLayers: [{ type: 'fill' }] } }));
       const def = LAYERS.find((l) => l.id === id)!;
-      slabs.unshift({ id, title: def.title, detail: a.detail ?? def.resolution, corners: corners(z + height / 2) });
-      z += height + GAP * SLICE_M;
+      let texture = current.textures.get(id);
+      if (!texture) {
+        texture = canvas(TEX_PX);
+        const ctx = texture.getContext('2d')!;
+        ctx.drawImage(map, 0, 0);
+        ctx.globalAlpha = def.opacity ?? 1;
+        SLABS[id].draw(ctx, d);
+        current.textures.set(id, texture);
+      }
+      const t = THICKNESS * SIZE_M;
+      const relief = SLABS[id].relief ? reliefGrid(d) : null;
+      const height = t + (relief ? (d.max - d.min) * VERTICAL_EXAGGERATION : 0);
+      graphics.push(new Graphic({ geometry: slabMesh(z, t, texture, relief), symbol: { type: 'mesh-3d', symbolLayers: [{ type: 'fill' }] } }));
+      slabs.unshift({ id, title: def.title, detail: SLABS[id].detail?.(d) ?? def.resolution, corners: corners(z + height / 2) });
+      z += height + GAP * SIZE_M;
     }
     // Dashed guides from the ground up to the bottom of the stack.
     if (ordered.length) {
       for (const [lon, lat] of cornerLonLats()) {
-        const ground = dtmAt(d, lon, lat);
         graphics.push(
           new Graphic({
-            geometry: new Polyline({ paths: [[[lon, lat, ground], [lon, lat, bottom]]], hasZ: true, spatialReference: marsSR() }),
+            geometry: new Polyline({ paths: [[[lon, lat, dtmAt(d, lon, lat)], [lon, lat, bottom]]], hasZ: true, spatialReference: marsSR() }),
             symbol: { type: 'simple-line', color: [255, 209, 102, 0.8], width: 1.5, style: 'dash' },
           }),
         );
@@ -165,6 +180,39 @@ export function createLayerStack() {
   }
 
   return { layers: [footprint, stack], stack, update };
+}
+
+/** The base map layers over the area, composited like on the ground, from their own tiles. */
+async function baseImage(layers: Layer[]): Promise<HTMLCanvasElement> {
+  const out = canvas(TEX_PX);
+  const ctx = out.getContext('2d')!;
+  ctx.fillStyle = NO_MAP_COLOR;
+  ctx.fillRect(0, 0, TEX_PX, TEX_PX);
+  const w = EXTENT.xmax - EXTENT.xmin;
+  const h = EXTENT.ymax - EXTENT.ymin;
+  for (const layer of layers as TiledLayer[]) {
+    await layer.load();
+    const info = layer.tileInfo;
+    if (!info) continue;
+    // The coarsest level that is at least as sharp as the texture.
+    const lod = info.lods.find((l) => l.resolution <= w / TEX_PX) ?? info.lods[info.lods.length - 1];
+    const tileDeg = info.size[0] * lod.resolution;
+    const { x: ox, y: oy } = info.origin;
+    const cols = [Math.floor((EXTENT.xmin - ox) / tileDeg), Math.floor((EXTENT.xmax - ox) / tileDeg)];
+    const rows = [Math.floor((oy - EXTENT.ymax) / tileDeg), Math.floor((oy - EXTENT.ymin) / tileDeg)];
+    const tiles: { row: number; col: number }[] = [];
+    for (let row = rows[0]; row <= rows[1]; row++) for (let col = cols[0]; col <= cols[1]; col++) tiles.push({ row, col });
+    const images = await Promise.all(tiles.map((t) => layer.fetchTile(lod.level, t.row, t.col).catch(() => null)));
+    ctx.globalAlpha = layer.opacity;
+    tiles.forEach(({ row, col }, i) => {
+      const img = images[i];
+      if (!img) return;
+      const x = ((ox + col * tileDeg - EXTENT.xmin) / w) * TEX_PX;
+      const y = ((EXTENT.ymax - (oy - row * tileDeg)) / h) * TEX_PX;
+      ctx.drawImage(img, x, y, (tileDeg / w) * TEX_PX, (tileDeg / h) * TEX_PX);
+    });
+  }
+  return out;
 }
 
 async function loadSliceData(): Promise<SliceData> {
@@ -212,17 +260,16 @@ async function loadSliceData(): Promise<SliceData> {
 /** Multiply-style hillshade, sun from the northwest at 45°, on the exaggerated relief. */
 function hillshade(dtm: Float32Array): Float32Array {
   const n = RASTER_PX;
-  const cell = SLICE_M / n;
+  const [cx, cy] = [WIDTH_M / n, HEIGHT_M / n];
   const out = new Float32Array(n * n).fill(1);
   const [sx, sy, sz] = [-0.5, 0.5, Math.SQRT1_2]; // toward the sun: northwest, 45° up
   const at = (i: number, j: number) => dtm[Math.min(n - 1, Math.max(0, j)) * n + Math.min(n - 1, Math.max(0, i))];
   for (let j = 0; j < n; j++)
     for (let i = 0; i < n; i++) {
-      const dzdx = ((at(i + 1, j) - at(i - 1, j)) / (2 * cell)) * VERTICAL_EXAGGERATION;
-      const dzdy = ((at(i, j - 1) - at(i, j + 1)) / (2 * cell)) * VERTICAL_EXAGGERATION; // row 0 = north
-      const len = Math.hypot(dzdx, dzdy, 1);
-      const lit = (-dzdx * sx - dzdy * sy + sz) / len;
-      if (Number.isFinite(lit)) out[j * n + i] = 0.45 + 0.55 * Math.max(0, lit) / sz;
+      const dzdx = ((at(i + 1, j) - at(i - 1, j)) / (2 * cx)) * VERTICAL_EXAGGERATION;
+      const dzdy = ((at(i, j - 1) - at(i, j + 1)) / (2 * cy)) * VERTICAL_EXAGGERATION; // row 0 = north
+      const lit = (-dzdx * sx - dzdy * sy + sz) / Math.hypot(dzdx, dzdy, 1);
+      if (Number.isFinite(lit)) out[j * n + i] = 0.45 + (0.55 * Math.max(0, lit)) / sz;
     }
   return out;
 }
@@ -236,32 +283,30 @@ function elevationColor(h: number, shade: number): readonly number[] | null {
   return r[i].color.map((c, k) => Math.min(255, (r[i - 1].color[k] + (c - r[i - 1].color[k]) * t) * shade));
 }
 
-function rasterCanvas(color: (k: number) => readonly number[] | null): HTMLCanvasElement {
+function canvas(size: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  return c;
+}
+
+/** Draws a data raster over the slab: colored where color() returns a color, clear elsewhere. */
+function rasterOverlay(ctx: CanvasRenderingContext2D, color: (k: number) => readonly number[] | null) {
   const n = RASTER_PX;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = n;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = SLAB_FILL;
-  ctx.fillRect(0, 0, n, n);
-  const img = ctx.getImageData(0, 0, n, n);
+  const layer = canvas(n);
+  const lctx = layer.getContext('2d')!;
+  const img = lctx.createImageData(n, n);
   for (let k = 0; k < n * n; k++) {
     const c = color(k);
     if (c) img.data.set([c[0], c[1], c[2], 255], k * 4);
   }
-  ctx.putImageData(img, 0, 0);
-  return canvas;
+  lctx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(layer, 0, 0, TEX_PX, TEX_PX);
 }
 
-function vectorCanvas(draw: (ctx: CanvasRenderingContext2D, xy: (c: LonLat) => [number, number]) => void): HTMLCanvasElement {
-  const n = VECTOR_PX;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = n;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = SLAB_FILL;
-  ctx.fillRect(0, 0, n, n);
-  ctx.lineJoin = ctx.lineCap = 'round';
-  draw(ctx, ([lon, lat]) => [((lon - EXTENT.xmin) / (EXTENT.xmax - EXTENT.xmin)) * n, ((EXTENT.ymax - lat) / (EXTENT.ymax - EXTENT.ymin)) * n]);
-  return canvas;
+/** Texture pixel of a lon/lat. */
+function xy([lon, lat]: LonLat): [number, number] {
+  return [((lon - EXTENT.xmin) / (EXTENT.xmax - EXTENT.xmin)) * TEX_PX, ((EXTENT.ymax - lat) / (EXTENT.ymax - EXTENT.ymin)) * TEX_PX];
 }
 
 function dot(ctx: CanvasRenderingContext2D, [x, y]: [number, number], r: number, color: string) {
@@ -286,7 +331,8 @@ function reliefGrid(d: SliceData): { size: number; z: Float32Array } {
 /** A slab: textured top (flat, or the relief grid) with plain side walls, its bottom at height z (m). */
 function slabMesh(z: number, thickness: number, texture: HTMLCanvasElement, relief: { size: number; z: Float32Array } | null): Mesh {
   const size = relief?.size ?? 2;
-  const h = SLICE_M / 2;
+  const [hw, hh] = [WIDTH_M / 2, HEIGHT_M / 2];
+  const at = (i: number, j: number): [number, number] => [-hw + (i / (size - 1)) * WIDTH_M, hh - (j / (size - 1)) * HEIGHT_M];
   const position: number[] = [];
   const uv: number[] = [];
   const top: number[] = [];
@@ -296,7 +342,7 @@ function slabMesh(z: number, thickness: number, texture: HTMLCanvasElement, reli
   // Top grid, row 0 = north (texture row 0).
   for (let j = 0; j < size; j++)
     for (let i = 0; i < size; i++) {
-      position.push(-h + (i / (size - 1)) * SLICE_M, h - (j / (size - 1)) * SLICE_M, topZ(i, j));
+      position.push(...at(i, j), topZ(i, j));
       uv.push(i / (size - 1), j / (size - 1));
     }
   for (let j = 0; j < size - 1; j++)
@@ -314,8 +360,7 @@ function slabMesh(z: number, thickness: number, texture: HTMLCanvasElement, reli
   for (const edge of edges) {
     const start = position.length / 3;
     for (const [i, j] of edge) {
-      const x = -h + (i / (size - 1)) * SLICE_M, y = h - (j / (size - 1)) * SLICE_M;
-      position.push(x, y, topZ(i, j), x, y, 0);
+      position.push(...at(i, j), topZ(i, j), ...at(i, j), 0);
       uv.push(0, 0, 0, 0);
     }
     for (let m = 0; m < edge.length - 1; m++) {
@@ -328,8 +373,8 @@ function slabMesh(z: number, thickness: number, texture: HTMLCanvasElement, reli
     vertexSpace: new MeshLocalVertexSpace({ origin: [CENTER.lon, CENTER.lat, z] }),
     vertexAttributes: { position: new Float64Array(position), uv: new Float32Array(uv) },
     components: [
-      new MeshComponent({ faces: new Uint32Array(top), material: new MeshMaterial({ colorTexture: new MeshTexture({ data: texture, transparent: true }), alphaMode: 'blend', doubleSided: true }) }),
-      new MeshComponent({ faces: new Uint32Array(sides), material: new MeshMaterial({ color: SIDE_COLOR, alphaMode: 'blend', doubleSided: true }) }),
+      new MeshComponent({ faces: new Uint32Array(top), material: new MeshMaterial({ colorTexture: new MeshTexture({ data: texture }), doubleSided: true }) }),
+      new MeshComponent({ faces: new Uint32Array(sides), material: new MeshMaterial({ color: SIDE_COLOR, doubleSided: true }) }),
     ],
   });
 }
@@ -348,8 +393,8 @@ function corners(z: number): Point[] {
 }
 
 function dtmAt(d: SliceData, lon: number, lat: number): number {
-  const i = Math.round(((lon - EXTENT.xmin) / (EXTENT.xmax - EXTENT.xmin)) * (RASTER_PX - 1));
-  const j = Math.round(((EXTENT.ymax - lat) / (EXTENT.ymax - EXTENT.ymin)) * (RASTER_PX - 1));
+  const i = Math.min(RASTER_PX - 1, Math.round(((lon - EXTENT.xmin) / (EXTENT.xmax - EXTENT.xmin)) * (RASTER_PX - 1)));
+  const j = Math.min(RASTER_PX - 1, Math.round(((EXTENT.ymax - lat) / (EXTENT.ymax - EXTENT.ymin)) * (RASTER_PX - 1)));
   const v = d.dtm[j * RASTER_PX + i];
   return Number.isFinite(v) ? v : d.min;
 }

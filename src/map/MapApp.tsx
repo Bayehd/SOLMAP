@@ -52,7 +52,7 @@ const CAMERA_VIEWS: { id: CameraView; label: string }[] = [
   { id: 'top', label: 'Top' },
 ];
 // Side view: the layer stack, seen corner-on from the southwest.
-const SIDE_TILT = 62;
+const SIDE_TILT = 68;
 const SIDE_HEADING = 35;
 const LABEL_GAP_PX = 24; // between the stack and its labels
 const TOP_ZOOM = 0.65; // top view frames this fraction of the Jezero area (smaller = closer)
@@ -212,15 +212,18 @@ export function MapApp({
   }, [map, layers, globalElevation, roverLayer]);
 
   useEffect(() => {
-    roverLayer.visible = showRover;
-  }, [showRover, roverLayer]);
+    roverLayer.visible = showRover && cameraView !== 'side'; // hidden under the stack
+  }, [showRover, roverLayer, cameraView]);
 
   // Side view: one slab per checked data layer, elevation on top (see layerStack.ts). Framed once on entry.
   const stackIds = LAYERS.filter((l) => STACKABLE.has(l.id) && visibility[l.id]).map((l) => l.id).join(',');
+  const baseIds = LAYERS.filter((l) => l.group === 'Base map' && visibility[l.id]).map((l) => l.id).join(','); // drawn on every slab
   const framed = useRef(false);
   useEffect(() => {
     const side = cameraView === 'side';
     for (const l of stack.layers) l.visible = side;
+    // Keep the stack clear of the title card (top left), where its labels go.
+    if (viewRef.current) viewRef.current.padding = { top: side ? 160 : 0, left: side ? 120 : 0, right: 0, bottom: 0 };
     if (!side) {
       framed.current = false;
       setSlabs([]);
@@ -228,7 +231,7 @@ export function MapApp({
     }
     let cancelled = false;
     stack
-      .update(stackIds ? stackIds.split(',') : [])
+      .update(stackIds ? stackIds.split(',') : [], baseIds ? baseIds.split(',').map((id) => layers[id]) : [])
       .then((placed) => {
         if (cancelled) return;
         setSlabs(placed);
@@ -241,7 +244,7 @@ export function MapApp({
     return () => {
       cancelled = true;
     };
-  }, [cameraView, stackIds, stack]);
+  }, [cameraView, stackIds, baseIds, stack, layers]);
 
   // Slab labels sit to the left of the stack (the layer panel is on the right), level with each slab.
   useEffect(() => {
