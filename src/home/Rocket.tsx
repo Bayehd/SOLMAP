@@ -48,12 +48,6 @@ export function Rocket() {
       {/* Exhaust (behind the nozzles). Solids burn brighter and longer than the core engine. */}
       <g className="rocket-flame">
         <ellipse cx="50" cy="735" rx="58" ry="55" fill="url(#rk-glow)" />
-        {SRB_X.map((x) => (
-          <g key={x}>
-            <path d={`M${x - 6} 700 Q${x - 10} 745 ${x} 800 Q${x + 10} 745 ${x + 6} 700 Z`} fill="url(#rk-flame)" />
-            <path d={`M${x - 3} 700 Q${x - 4} 722 ${x} 745 Q${x + 4} 722 ${x + 3} 700 Z`} fill="#fffbe8" opacity="0.9" />
-          </g>
-        ))}
         <path d="M43 700 Q39 735 50 778 Q61 735 57 700 Z" fill="url(#rk-flame)" />
         <path d="M46.5 700 Q45.5 716 50 734 Q54.5 716 53.5 700 Z" fill="#fffbe8" opacity="0.9" />
       </g>
@@ -70,9 +64,13 @@ export function Rocket() {
       <path d="M40 646 L50 672 L60 646" fill="none" stroke="#9b7d63" strokeWidth="1.6" />
       <path d="M44 683 L56 683 L59.5 700 L40.5 700 Z" fill="url(#rk-metal)" />
 
-      {/* Solid rocket boosters, with struts to the core */}
+      {/* Solid rocket boosters, with their own plumes and struts to the core; they separate in flight. */}
       {SRB_X.map((x) => (
-        <g key={x}>
+        <g key={x} className={`rocket-srb rocket-srb-${x < 50 ? 'l' : 'r'}`}>
+          <g className="rocket-flame">
+            <path d={`M${x - 6} 700 Q${x - 10} 745 ${x} 800 Q${x + 10} 745 ${x + 6} 700 Z`} fill="url(#rk-flame)" />
+            <path d={`M${x - 3} 700 Q${x - 4} 722 ${x} 745 Q${x + 4} 722 ${x + 3} 700 Z`} fill="#fffbe8" opacity="0.9" />
+          </g>
           <path d={`M${x - 10} 508 C${x - 10} 494 ${x - 5} 484 ${x} 482 C${x + 5} 484 ${x + 10} 494 ${x + 10} 508 Z`} fill="url(#rk-white)" />
           <rect x={x - 10} y="508" width="20" height="175" fill="url(#rk-white)" />
           <rect x={x - 10} y="508" width="20" height="0.6" fill="#8a8f96" />
