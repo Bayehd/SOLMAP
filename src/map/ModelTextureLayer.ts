@@ -5,8 +5,8 @@ import Extent from '@arcgis/core/geometry/Extent';
 import { marsSR, marsTileInfo, tileExtent } from './mars';
 
 /**
- * The model's texture is stored south-up (see src/mars/loadMarsColorMap.ts), with its left edge
- * at 180°W. Flip this if a different texture appears upside down against the MDIM basemap.
+ * The model's texture is stored south-up (row 0 is the south pole), with its left edge at 180°W.
+ * Flip this if a different texture appears upside down against the MDIM basemap.
  */
 const TEXTURE_SOUTH_UP = true;
 

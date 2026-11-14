@@ -7,8 +7,6 @@
   font: 14px/1.4 system-ui, -apple-system, sans-serif;
   color: var(--text);
 }
-.hud { position: fixed; inset: 0; pointer-events: none; }
-.hud > * { pointer-events: auto; }
 .panel {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
@@ -34,37 +32,3 @@
 .segmented .btn:first-child { border-radius: 8px 0 0 8px; }
 .segmented .btn:last-child { border-radius: 0 8px 8px 0; border-left: none; }
 .segmented .btn[aria-pressed="true"] { background: var(--accent); color: #1a1410; border-color: var(--accent); }
-.site-card { position: absolute; top: 16px; left: 16px; max-width: min(320px, calc(100vw - 140px)); }
-.site-card h2 { margin: 0 0 4px; font-size: 16px; }
-.site-card .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.layers { position: absolute; top: 16px; right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.layers-panel { min-width: 160px; display: grid; gap: 8px; }
-.icon-btn { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; }
-.icon-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
-.layers-panel input:disabled + * , .layers-panel label:has(input:disabled) { opacity: 0.5; cursor: default; }
-.layers-panel .row { display: flex; gap: 8px; align-items: center; cursor: pointer; }
-.slab-label {
-  transform: translateY(-50%);
-  display: grid;
-  gap: 2px;
-  min-width: 170px;
-  padding: 0 0 6px;
-  border-bottom: 1px dashed rgba(242, 237, 232, 0.55);
-  white-space: nowrap;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-}
-.slab-label span { font-size: 16px; font-weight: 600; letter-spacing: 0.01em; }
-.slab-label small { font-size: 12px; color: var(--muted); }
-.hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); color: var(--muted); font-size: 12px; text-align: center; width: calc(100vw - 32px); pointer-events: none; }
-.site-label {
-  font: 12px system-ui, sans-serif;
-  color: var(--text);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  padding: 2px 8px;
-  white-space: nowrap;
-  cursor: pointer;
-  transform: translateY(-20px);
-}
-.site-label:hover { border-color: var(--accent); }

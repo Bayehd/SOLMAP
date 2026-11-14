@@ -153,9 +153,6 @@ export function MapApp() {
             Whole planet
           </button>
         </div>
-        <a className="small link" href="classic.html">
-          Open the classic 3D model view
-        </a>
       </div>
 
       <div className="layer-panel panel" data-open={panelOpen}>
