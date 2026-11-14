@@ -15,16 +15,6 @@ Mars data is spread across missions, formats and archives. An explorer planning 
 - **Data and methods page:** every layer shows its NASA source, and every assumption is labelled.
 - **Site comparison:** Jezero Crater is the full case study; other sites are compared where NASA data allows.
 
-## Data (NASA sources only)
-| Layer | Source |
-|---|---|
-| Terrain and slope | HiRISE / CTX terrain models (NASA PDS, Mars Trek) |
-| Global elevation | MOLA |
-| Minerals | CRISM (Mars Trek) |
-| Thermal | THEMIS-IR (Mars Trek) |
-| Science targets | NASA Mars 2020 Perseverance rock samples |
-| Weather | MEDA (Jezero), REMS (Gale) |
-
 
 ## Team
 Pari, Annalaya, Anna, Amira, Julia, Benonia
