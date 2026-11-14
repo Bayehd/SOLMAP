@@ -9,6 +9,9 @@ import { whenOnce } from '@arcgis/core/core/reactiveUtils';
 import MapView from '@arcgis/core/views/MapView';
 import SceneView from '@arcgis/core/views/SceneView';
 import type Viewpoint from '@arcgis/core/Viewpoint';
+import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import { RoutePanel } from '../route/RoutePanel';
+import { useRoutePlanner } from '../route/useRoutePlanner';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
 import { JEZERO_DTM_EXTENT, jezeroExtent, landingExtent, marsSR, marsTileInfo } from './mars';
@@ -75,7 +78,7 @@ export function MapApp({
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
 
   // One Map and one set of layers for both views, so a toggle applies to both.
-  const { map, layers, globalElevation, roverLayer } = useMemo(() => {
+  const { map, layers, globalElevation, roverLayer, routeLayer } = useMemo(() => {
     const layers: Record<string, Layer> = {};
     for (const def of LAYERS) {
       const layer = def.create();
@@ -87,12 +90,17 @@ export function MapApp({
     }
     const globalElevation = globalElevationLayer();
     const roverLayer = createRoverLayer();
+    const routeLayer = new GraphicsLayer({ id: 'route', title: 'Safest route', elevationInfo: { mode: 'on-the-ground' } });
     const map = new ArcGISMap({
-      layers: [...LAYERS.map((d) => layers[d.id]), roverLayer],
+      layers: [...LAYERS.map((d) => layers[d.id]), routeLayer, roverLayer],
       ground: { layers: [createJezeroElevationLayer(globalElevation)] },
     });
-    return { map, layers, globalElevation, roverLayer };
+    return { map, layers, globalElevation, roverLayer, routeLayer };
   }, []);
+
+  const planner = useRoutePlanner(routeLayer, layers);
+  const plannerRef = useRef(planner);
+  plannerRef.current = planner;
 
   useEffect(() => {
     for (const def of LAYERS) layers[def.id].visible = visibility[def.id];
@@ -128,6 +136,7 @@ export function MapApp({
       const p = event.mapPoint;
       if (!p) return;
       const point = new Point({ x: p.longitude ?? p.x, y: p.latitude ?? p.y, spatialReference: marsSR() });
+      if (plannerRef.current.pick(point.x, point.y)) return; // picking a route point: don't open the probe
       const inDtm =
         point.x >= JEZERO_DTM_EXTENT.xmin && point.x <= JEZERO_DTM_EXTENT.xmax && point.y >= JEZERO_DTM_EXTENT.ymin && point.y <= JEZERO_DTM_EXTENT.ymax;
       const pixel = async (id: string) => {
@@ -217,6 +226,7 @@ export function MapApp({
     <div className="map-app">
       <div ref={containerRef} className="map-view" />
 
+      <div className="map-left">
       <div className="map-card panel">
         <h1>SOLMAP · Jezero Crater</h1>
         <p className="muted small">Real data layers on Mars (GCS Mars 2000). Click the map to read elevation and slope.</p>
@@ -244,6 +254,8 @@ export function MapApp({
           </button>
         </div>
       </div>
+      <RoutePanel planner={planner} />
+      </div>
 
       <div className="map-right">
       <div className="layer-panel panel" data-open={panelOpen}>
@@ -265,29 +277,7 @@ export function MapApp({
                       onClick={() => def.basemap && visibility[def.id] && toggle(def)}
                     />
                     <span>{def.title}</span>
-                    <span className={`badge badge-${def.kind}`}>{def.kind}</span>
                   </label>
-                  {visibility[def.id] && (
-                    <div className="layer-detail">
-                      <p className="muted small">{def.description}</p>
-                      {def.legend && (
-                        <ul className="legend">
-                          {def.legend.map((item) => (
-                            <li key={item.label}>
-                              <span className="swatch" style={{ background: item.color }} />
-                              {item.label}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <p className="muted small">
-                        {def.resolution} ·{' '}
-                        <a className="link" href={def.source.url} target="_blank" rel="noreferrer">
-                          {def.source.name}
-                        </a>
-                      </p>
-                    </div>
-                  )}
                 </div>
               ))}
             </section>
