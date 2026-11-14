@@ -25,6 +25,7 @@ type Probe = {
   global: number | null; // m, MOLA 463 m
   mineral: number | null; // MINERAL_CLASSES index + 1, 0 = none
   sample: { number: number; name: string; kind: string; sol: number } | null; // clicked sample point
+  depot: { name: string; sol: number } | null; // clicked depot tube
 };
 
 const initialVisibility = () => Object.fromEntries(LAYERS.map((l) => [l.id, l.visible]));
@@ -116,14 +117,17 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
         const v = r.value?.[0];
         return v === undefined || v === null || v <= -32767 ? null : v;
       };
-      const sampleHit = view
-        .hitTest(event, { include: [layers['m20-samples']] })
+      const pointHits = view
+        .hitTest(event, { include: [layers['m20-samples'], layers['m20-depot']] })
         .then((h) => {
-          const g = h.results.find((r) => r.type === 'graphic')?.graphic;
-          return g ? (g.attributes as NonNullable<Probe['sample']>) : null;
+          const attrs = (id: string) => {
+            for (const r of h.results) if (r.type === 'graphic' && r.layer === layers[id]) return r.graphic.attributes;
+            return null;
+          };
+          return { sample: attrs('m20-samples') as Probe['sample'], depot: attrs('m20-depot') as Probe['depot'] };
         })
-        .catch(() => null);
-      const [dtm, slope, mineral, global, sample] = await Promise.all([
+        .catch(() => ({ sample: null, depot: null }));
+      const [dtm, slope, mineral, global, hits] = await Promise.all([
         pixel('jezero-elevation'),
         pixel('jezero-slope'),
         pixel('jezero-minerals'),
@@ -131,9 +135,9 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
           .queryElevation(point)
           .then((r) => ((r.geometry as Point).z ?? null))
           .catch(() => null),
-        sampleHit,
+        pointHits,
       ]);
-      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm ? (mineral ?? 0) : null, sample });
+      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm ? (mineral ?? 0) : null, ...hits });
     });
 
     return () => {
@@ -275,6 +279,14 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
                 <dt>Sample</dt>
                 <dd>
                   #{probe.sample.number} {probe.sample.name} ({probe.sample.kind.toLowerCase()}, sealed sol {probe.sample.sol})
+                </dd>
+              </>
+            )}
+            {probe.depot && (
+              <>
+                <dt>Depot tube</dt>
+                <dd>
+                  {probe.depot.name} (dropped sol {probe.depot.sol})
                 </dd>
               </>
             )}
