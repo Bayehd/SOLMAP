@@ -105,56 +105,28 @@
 }
 
 /* ---------- Sky-crane landing ----------
-   The lander is anchored by the rover's wheels (y = 280 of 300) at the centre of the screen,
-   where the camera puts Jezero. Offsets inside the SVG are viewBox units. */
-.lander {
-  --lh: min(34vh, 260px);
-  position: fixed;
-  z-index: 30;
-  pointer-events: none;
-  left: 50vw;
-  top: 50vh;
-  height: var(--lh);
-  aspect-ratio: 200 / 300;
-  transform: translate(-50%, -93.333%);
-}
-.lander-svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.lander[data-phase="approach"] { top: -40vh; }
-.lander[data-phase="descend"] { transition: top 3s cubic-bezier(0.15, 0.7, 0.25, 1); }
-
-/* Rover reeled in under the descent stage, then lowered; bridles scale from their top (y = 108) in step. */
-.lander-rover { transform: translateY(-108px); transition: transform 1.8s ease-in-out; }
-.lander-bridles { transform-origin: 0 108px; transform: scaleY(0.1); transition: transform 1.8s ease-in-out, opacity 0.1s; }
-.lander[data-phase="lower"] .lander-rover,
-.lander[data-phase="flyaway"] .lander-rover,
-.lander[data-phase="landed"] .lander-rover { transform: none; }
-.lander[data-phase="lower"] .lander-bridles { transform: scaleY(1); }
-.lander[data-phase="flyaway"] .lander-bridles,
-.lander[data-phase="landed"] .lander-bridles { transform: scaleY(1); opacity: 0; }
+   Full-screen overlay; Lander.tsx positions the descent stage, bridles and dust in screen pixels every frame
+   from the 3D rover's position. Inside .lander-stage, units are stage units (scaled with the rover). */
+.skycrane { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 30; pointer-events: none; overflow: visible; }
 
 /* Descent engines: full thrust on the way down, throttled while hovering, full again for the flyaway. */
-.lander-flame { opacity: 0; transform-box: fill-box; transform-origin: 50% 0; transition: opacity 0.3s, transform 0.5s; }
-.lander[data-phase="descend"] .lander-flame { opacity: 1; animation: rk-flicker 0.07s infinite alternate; }
-.lander[data-phase="lower"] .lander-flame { opacity: 0.9; transform: scaleY(0.65); animation: rk-flicker 0.07s infinite alternate; }
-.lander[data-phase="flyaway"] .lander-flame { opacity: 1; transform: scaleY(1.2); animation: rk-flicker 0.06s infinite alternate; }
+.lander-flame { opacity: 1; transform-box: fill-box; transform-origin: 50% 0; transition: opacity 0.3s, transform 0.5s; animation: rk-flicker 0.07s infinite alternate; }
+.skycrane[data-phase="lower"] .lander-flame { opacity: 0.9; transform: scaleY(0.65); }
+.skycrane[data-phase="flyaway"] .lander-flame { transform: scaleY(1.2); }
+
+/* Bridles are cut at touchdown. */
+.skycrane[data-phase="flyaway"] .lander-bridles { opacity: 0; transition: opacity 0.1s; }
 
 /* Flyaway: the stage climbs off at an angle and is gone. */
-.lander-stage { transform-origin: 100px 100px; transition: transform 1.6s cubic-bezier(0.5, 0, 0.9, 0.6), opacity 0.4s ease 1.2s; }
-.lander[data-phase="flyaway"] .lander-stage,
-.lander[data-phase="landed"] .lander-stage { transform: translate(420px, -700px) rotate(32deg); opacity: 0; }
+.lander-stage { transform-origin: 100px 100px; transition: transform 1.8s cubic-bezier(0.5, 0, 0.9, 0.6), opacity 0.5s ease 1.2s; }
+.skycrane[data-phase="flyaway"] .lander-stage { transform: translate(420px, -700px) rotate(32deg); opacity: 0; }
 
-/* Mast stowed along the deck, raised once the rover is down. */
-.lander-mast { transform-origin: 72px 228px; transform: rotate(90deg); transition: transform 1s ease 0.4s; }
-.lander[data-phase="landed"] .lander-mast { transform: none; }
-
-/* Touchdown dust, then the rover fades so the map stays usable. */
+/* Dust: rises under the hovering stage, puffs out at touchdown. */
 .lander-dust { opacity: 0; transform-box: fill-box; transform-origin: center; }
-.lander[data-phase="lower"] .lander-dust { animation: ld-dust-rise 1.8s ease-in forwards; }
-.lander[data-phase="flyaway"] .lander-dust { animation: ld-dust-puff 1.4s ease-out forwards; }
-@keyframes ld-dust-rise { from { opacity: 0; transform: scale(0.3); } to { opacity: 0.6; transform: scale(0.9); } }
-@keyframes ld-dust-puff { from { opacity: 0.7; transform: scale(0.9); } to { opacity: 0; transform: scale(1.7); } }
-/* The 3D model takes over at the landing site: cross-fade once the mast is up. */
-.lander[data-phase="landed"] { opacity: 0; transition: opacity 1s ease 1.4s; }
+.skycrane[data-phase="lower"] .lander-dust { animation: ld-dust-rise 2.2s ease-in forwards; }
+.skycrane[data-phase="flyaway"] .lander-dust { animation: ld-dust-puff 1.6s ease-out forwards; }
+@keyframes ld-dust-rise { from { opacity: 0; transform: scale(0.3); } to { opacity: 0.55; transform: scale(0.9); } }
+@keyframes ld-dust-puff { from { opacity: 0.65; transform: scale(0.9); } to { opacity: 0; transform: scale(1.7); } }
 
 @media (max-width: 640px) {
   .home { --home-rocket-x: 86vw; --home-rocket-y: 88vh; }
