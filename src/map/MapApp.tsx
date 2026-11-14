@@ -56,6 +56,7 @@ const JEZERO_CENTER = {
 const SIDE_DISTANCE_DEG = 0.42; // side view: camera this far south of the centre (~25 km) ...
 const SIDE_HEIGHT_M = -2600 + 3500; // ... about 3.5 km above the crater floor ...
 const SIDE_TILT = 84; // ... looking almost level across the crater (90 = horizontal)
+const TOP_ZOOM = 0.65; // top view frames this fraction of the Jezero area (smaller = closer)
 
 // Following the rover: each view frames the rover from its angle, closer in.
 const VIEW_TILT: Record<CameraView, number> = { '3d': 55, side: SIDE_TILT, top: 0 };
@@ -63,7 +64,7 @@ const FOLLOW_SCALE = 25_000;
 
 function cameraFor(v: CameraView) {
   if (v === '3d') return { target: jezeroExtent(), tilt: 55, heading: 0 };
-  if (v === 'top') return { target: jezeroExtent(), tilt: 0, heading: 0 };
+  if (v === 'top') return { target: jezeroExtent().expand(TOP_ZOOM), tilt: 0, heading: 0 };
   return new Camera({
     position: new Point({ x: JEZERO_CENTER.lon, y: JEZERO_CENTER.lat - SIDE_DISTANCE_DEG, z: SIDE_HEIGHT_M, spatialReference: marsSR() }),
     heading: 0,
