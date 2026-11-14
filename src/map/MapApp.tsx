@@ -5,6 +5,7 @@ import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
 import ArcGISMap from '@arcgis/core/Map';
 import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
+import { whenOnce } from '@arcgis/core/core/reactiveUtils';
 import MapView from '@arcgis/core/views/MapView';
 import SceneView from '@arcgis/core/views/SceneView';
 import type Viewpoint from '@arcgis/core/Viewpoint';
@@ -31,7 +32,19 @@ function slopeClass(deg: number) {
   return SLOPE_CLASSES.find((c) => deg < c.max) ?? SLOPE_CLASSES[SLOPE_CLASSES.length - 1];
 }
 
-export function MapApp() {
+/** Opening sequence from the home page: start on the whole planet, then fly down to Jezero. */
+export type MapIntro = {
+  fly: boolean; // set once the home page is out of the way
+  onReady: () => void; // the globe has loaded
+  onArrive: () => void; // the camera has reached Jezero
+};
+
+const globeCamera = () =>
+  new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
+
+export function MapApp({ intro }: { intro?: MapIntro } = {}) {
+  const introRef = useRef(intro);
+  introRef.current = intro;
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<MapView | SceneView | null>(null);
   const viewpointRef = useRef<Viewpoint | null>(null);
@@ -77,7 +90,12 @@ export function MapApp() {
 
     view.when(() => {
       if (viewpointRef.current) view.viewpoint = viewpointRef.current;
-      else if (view instanceof SceneView) view.goTo({ target: jezeroExtent(), tilt: 55 }, { animate: false });
+      else if (introRef.current && view instanceof SceneView) {
+        view.goTo(globeCamera(), { animate: false });
+        // Wait for the globe tiles (at most 6 s) so the home page fades onto a loaded planet.
+        const loaded = whenOnce(() => !view.updating);
+        Promise.race([loaded, new Promise((r) => setTimeout(r, 6000))]).then(() => introRef.current?.onReady());
+      } else if (view instanceof SceneView) view.goTo({ target: jezeroExtent(), tilt: 55 }, { animate: false });
       else view.goTo(jezeroExtent(), { animate: false });
     });
 
@@ -115,6 +133,21 @@ export function MapApp() {
     };
   }, [mode, map, layers, globalElevation]);
 
+  // Intro flight: globe -> Jezero, slow enough to read as a descent.
+  const fly = intro?.fly ?? false;
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!fly || !(view instanceof SceneView)) return;
+    let cancelled = false;
+    view
+      .when(() => view.goTo({ target: jezeroExtent(), tilt: 55 }, { duration: 5000, easing: 'cubic-in-out' }))
+      .catch(() => {}) // interrupted by the user: land anyway
+      .then(() => !cancelled && introRef.current?.onArrive());
+    return () => {
+      cancelled = true;
+    };
+  }, [fly]);
+
   const toggle = (def: LayerDef) =>
     setVisibility((v) => {
       const next = { ...v, [def.id]: !v[def.id] };
@@ -129,7 +162,7 @@ export function MapApp() {
   };
   const goGlobe = () => {
     const view = viewRef.current;
-    if (view instanceof SceneView) view.goTo(new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 }));
+    if (view instanceof SceneView) view.goTo(globeCamera());
     else view?.goTo({ center: [77.4, 18.4], scale: 60_000_000 });
   };
 
