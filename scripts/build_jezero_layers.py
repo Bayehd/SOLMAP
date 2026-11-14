@@ -9,11 +9,14 @@ Outputs (all in GCS Mars 2000 Sphere, the CRS of ArcGIS wkid 104971):
   ctx_slope_20m.tif    Float32 slope in degrees, Cloud Optimized GeoTIFF
   m20_traverse.geojson Perseverance drive path
   m20_waypoints.geojson Perseverance end-of-drive positions
+  m20_samples.geojson  Where Perseverance collected its sealed samples
 
 Sources:
   DTM: USGS Astrogeology, Mars 2020 Terrain Relative Navigation CTX DTM mosaic
        (Fergason et al. 2020), 20 m/pixel, elevations tied to MOLA.
   Rover: NASA/JPL Mars 2020 MMGIS traverse and waypoint layers.
+  Samples: NASA Mars 2020 rock sample list (number, name, type, sol sealed),
+       https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/
 """
 import argparse
 import json
@@ -48,6 +51,24 @@ GCS_MARS_2000_SPHERE = (
 )
 # Known points: (name, lat, lon, published elevation m, tolerance m).
 # The Perseverance landing elevation is the first waypoint's elev_geoid.
+# Perseverance's sealed samples, from the NASA sample list (see Sources): (number, name, type, sol sealed).
+# Bell Island (29, unsealed) and Gallants (30) have no sealing sol yet, so they are left out.
+SAMPLES = [
+    (1, 'Roubion', 'Atmospheric', 164), (2, 'Montdenier', 'Rock core', 194),
+    (3, 'Montagnac', 'Rock core', 196), (4, 'Salette', 'Rock core', 262),
+    (5, 'Coulettes', 'Rock core', 271), (6, 'Robine', 'Rock core', 298),
+    (7, 'Malay', 'Rock core', 337), (8, 'Ha\'ahóni', 'Rock core', 371),
+    (9, 'Atsá', 'Rock core', 377), (10, 'Swift Run', 'Rock core', 490),
+    (11, 'Skyland', 'Rock core', 495), (12, 'Hazeltop', 'Rock core', 509),
+    (13, 'Bearwallow', 'Rock core', 516), (14, 'Shuyak', 'Rock core', 575),
+    (15, 'Mageik', 'Rock core', 619), (16, 'Kukaklek', 'Rock core', 631),
+    (17, 'Atmo Mountain', 'Regolith', 634), (18, 'Crosswind Lake', 'Regolith', 639),
+    (19, 'Melyn', 'Rock core', 749), (20, 'Otis Peak', 'Rock core', 832),
+    (21, 'Pilot Mountain', 'Rock core', 913), (22, 'Pelican Point', 'Rock core', 923),
+    (23, 'Lefroy Bay', 'Rock core', 949), (24, 'Comet Geyser', 'Rock core', 1088),
+    (25, 'Sapphire Canyon', 'Rock core', 1215), (26, 'Silver Mountain', 'Rock core', 1401),
+    (27, 'Green Gardens', 'Rock core', 1433), (28, 'Main River', 'Rock core', 1441),
+]
 POINT_CHECKS = [('Octavia E. Butler Landing', 18.44462715, 77.45088572, -2569.91, 15.0)]
 
 
@@ -162,10 +183,23 @@ def build_rover() -> None:
         p = f['properties']
         points.append({'type': 'Feature', 'properties': {},
                        'geometry': {'type': 'Point', 'coordinates': [round(p['lon'], 7), round(p['lat'], 7)]}})
+    # A sample is placed where the rover was parked when it was sealed: the last drive end before
+    # that sol. Coring and sealing happen at the same parking spot, a few sols apart.
+    stops = sorted((f['properties'] for f in waypoints['features']), key=lambda p: p['sol'])
+    samples = []
+    for number, sample, kind, sol in SAMPLES:
+        before = [p for p in stops if p['sol'] < sol]
+        if not before:
+            raise SystemExit(f'No rover position before sol {sol} for sample {sample}')
+        p = before[-1]
+        samples.append({'type': 'Feature',
+                        'properties': {'number': number, 'name': sample, 'kind': kind, 'sol': sol},
+                        'geometry': {'type': 'Point', 'coordinates': [round(p['lon'], 7), round(p['lat'], 7)]}})
     last_sol = max(f['properties'].get('sol') or 0 for f in waypoints['features'])
 
     for name, feats, label in [('m20_traverse.geojson', lines, traverse.get('name')),
-                               ('m20_waypoints.geojson', points, waypoints.get('name'))]:
+                               ('m20_waypoints.geojson', points, waypoints.get('name')),
+                               ('m20_samples.geojson', samples, 'M20_samples')]:
         path = OUT / name
         path.write_text(json.dumps({'type': 'FeatureCollection', 'name': label, 'features': feats},
                                    separators=(',', ':')))

@@ -37,6 +37,7 @@ npm run build
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
 | Jezero minerals (off by default) | NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node), 4 observations from 2007 | 18 m/px, smoothed to ~90 m | derived |
 | Perseverance traverse and stops | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
+| Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions | 28 sealed samples, to sol 1441 | data |
 
 **Assumption:** the slope classes (walkable < 15°, caution 15–25°, no-go ≥ 25°) are
 placeholders, not a NASA standard. Change them in `SLOPE_CLASSES` in `src/map/layers.ts`.
@@ -49,6 +50,11 @@ pyroxene (HCPINDEX2). They flag roughly the strongest 1–3 % of pixels, so the 
 each mineral is likely, not a lab-grade identification. Uncolored ground means nothing was
 detected or there is no CRISM coverage (about half of the 20 m area is covered). Change the
 thresholds in `CLASSES` in `scripts/build_jezero_minerals.py` and rebuild.
+
+**Assumption:** each sample point is the rover's parked position when the sample was sealed
+(its last drive end before the sealing sol), so it marks the workspace, not the exact borehole
+(a few meters off). Bell Island and Gallants have no sealing sol yet and are not shown. Update
+`SAMPLES` in `scripts/build_jezero_layers.py` as NASA adds samples. Click a point to see its name.
 
 ### Code
 
@@ -77,6 +83,7 @@ It downloads the USGS DTM and the NASA rover GeoJSON (cached in `scripts/.cache/
   projection (standard parallel 0°) converts to lon/lat by an exact rescale, so no value is
   resampled. The CRS is stored as an Esri WKT, the only non-EPSG form ArcGIS reads.
 - `m20_traverse.geojson`, `m20_waypoints.geojson`: the rover path and stops, geometry only.
+- `m20_samples.geojson`: one point per sealed sample (number, name, type, sol sealed).
 
 The mineral layer is built by a second script, after the first (it uses the DTM grid):
 
