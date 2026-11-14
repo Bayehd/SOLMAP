@@ -56,6 +56,10 @@ const SIDE_DISTANCE_DEG = 0.42; // side view: camera this far south of the centr
 const SIDE_HEIGHT_M = -2600 + 3500; // ... about 3.5 km above the crater floor ...
 const SIDE_TILT = 84; // ... looking almost level across the crater (90 = horizontal)
 
+// Following the rover: each view frames the rover from its angle, closer in.
+const VIEW_TILT: Record<CameraView, number> = { '3d': 55, side: SIDE_TILT, top: 0 };
+const FOLLOW_SCALE = 25_000;
+
 function cameraFor(v: CameraView) {
   if (v === '3d') return { target: jezeroExtent(), tilt: 55, heading: 0 };
   if (v === 'top') return { target: jezeroExtent(), tilt: 0, heading: 0 };
@@ -93,6 +97,12 @@ export function MapApp({
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
   const roverRef = useRef<ReturnType<typeof attachRover> | null>(null);
+  const [follow, setFollow] = useState(false);
+  const followRef = useRef(follow);
+  followRef.current = follow;
+  const playingRef = useRef(drive.playing);
+  playingRef.current = drive.playing;
+  const aimingRef = useRef(false); // an animated goTo onto the rover is running: don't shift the camera under it
 
   // One Map and one set of layers for both views, so a toggle applies to both.
   const { map, layers, globalElevation, roverLayer } = useMemo(() => {
@@ -130,7 +140,15 @@ export function MapApp({
     viewRef.current = view;
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
     view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
-    const rover = attachRover(view, roverLayer, setDrive);
+    // While following, move the camera by the same step as the rover, keeping whatever angle and zoom it has.
+    const onMove = (dLon: number, dLat: number) => {
+      if (!followRef.current || aimingRef.current || !view.ready || (!dLon && !dLat)) return;
+      const cam = view.camera.clone();
+      cam.position.x += dLon;
+      cam.position.y += dLat;
+      view.camera = cam;
+    };
+    const rover = attachRover(view, roverLayer, setDrive, onMove);
     roverRef.current = rover;
     if (roverControlRef.current) roverControlRef.current.current = rover;
 
@@ -213,9 +231,36 @@ export function MapApp({
       return next;
     });
 
+  /** Frame the rover at a tilt and heading; snaps instead of animating while it drives, so it stays centred. */
+  const aimAtRover = async (tilt: number, heading: number) => {
+    const view = viewRef.current;
+    const rover = roverRef.current;
+    if (!view || !rover) return;
+    const { lon, lat } = rover.position();
+    const z = await map.ground
+      .queryElevation(new Point({ x: lon, y: lat, spatialReference: marsSR() }))
+      .then((r) => (r.geometry as Point).z ?? 0)
+      .catch(() => 0);
+    const here = rover.position(); // it may have moved while the elevation was queried
+    const target = new Point({ x: here.lon, y: here.lat, z, spatialReference: marsSR() });
+    const animate = !playingRef.current;
+    aimingRef.current = animate;
+    await view.goTo({ target, tilt, heading, scale: FOLLOW_SCALE }, animate ? { duration: 1200 } : { animate: false }).catch(() => {});
+    aimingRef.current = false;
+  };
+
   const showView = (v: CameraView) => {
     setCameraView(v);
-    viewRef.current?.goTo(cameraFor(v), { duration: 1500 }).catch(() => {});
+    if (followRef.current) void aimAtRover(VIEW_TILT[v], 0);
+    else viewRef.current?.goTo(cameraFor(v), { duration: 1500 }).catch(() => {});
+  };
+
+  const toggleFollow = () => {
+    const on = !followRef.current;
+    followRef.current = on;
+    setFollow(on);
+    const cam = viewRef.current?.camera;
+    if (on) void aimAtRover(cam?.tilt ?? VIEW_TILT[cameraView], cam?.heading ?? 0);
   };
 
   // The rocket takes off from wherever the rover is (the landing site until it has driven).
@@ -263,6 +308,9 @@ export function MapApp({
             </button>
             <button className="btn" onClick={() => roverRef.current?.resetDrive()} disabled={!canTravel || !drive.ready || drive.km === 0}>
               Reset
+            </button>
+            <button className="btn" aria-pressed={follow} onClick={toggleFollow} disabled={!canTravel}>
+              Follow
             </button>
             <span className="muted small" aria-live="off">
               {drive.ready ? `${drive.km.toFixed(1)} / ${drive.totalKm.toFixed(1)} km` : 'Loading route…'}
