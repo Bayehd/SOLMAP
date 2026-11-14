@@ -32,7 +32,7 @@ npm run build
 | Viking color mosaic (MDIM 2.1) | USGS / NASA Ames, hosted by Esri | 232 m/px | data |
 | CTX image mosaic | Murray Lab, Caltech (MRO CTX), hosted by Esri | ~5 m/px | data |
 | SOLMAP model texture | `public/models/mars-8k.glb` | ~2.6 km/px | artistic |
-| 3D ground | Esri MOLA + HRSC global DEM, with the Jezero DTM in its place | 200 m / 20 m | data |
+| 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
 | Perseverance traverse and stops | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |

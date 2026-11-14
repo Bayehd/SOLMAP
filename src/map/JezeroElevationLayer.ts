@@ -1,4 +1,4 @@
-// 3D ground: Esri's global MOLA + HRSC elevation (200 m), with the 20 m USGS CTX DTM of the
+// 3D ground: NASA MGS MOLA global elevation (463 m), with the 20 m USGS CTX DTM of the
 // Jezero landing site in its place where it has data. Both are in meters above the MOLA areoid.
 import type ElevationLayer from '@arcgis/core/layers/ElevationLayer';
 import BaseElevationLayer, { type BaseElevationLayerProperties } from '@arcgis/core/layers/BaseElevationLayer';
@@ -6,8 +6,8 @@ import Extent from '@arcgis/core/geometry/Extent';
 import ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
 import { JEZERO_DTM_EXTENT, marsSR, marsTileInfo, publicUrl, tileExtent } from './mars';
 
-/** Deepest level the global DEM has (0.00275°/px ≈ 163 m). Deeper tiles upsample it. */
-const GLOBAL_MAX_LEVEL = 7;
+/** Deepest level the MOLA service has (0.0055°/sample ≈ 326 m, finer than MOLA's 463 m). Deeper tiles upsample it. */
+const GLOBAL_MAX_LEVEL = 6;
 /** Level 10 ≈ 20 m per sample, the DTM's resolution. */
 const MAX_LEVEL = 10;
 /** Below this level a tile is too coarse for the DTM to change it. */

@@ -20,7 +20,7 @@ type Probe = {
   lat: number;
   dtm: number | null; // m, 20 m DTM
   slope: number | null; // degrees
-  global: number | null; // m, 200 m global DEM
+  global: number | null; // m, MOLA 463 m
 };
 
 const initialVisibility = () => Object.fromEntries(LAYERS.map((l) => [l.id, l.visible]));
@@ -224,7 +224,7 @@ export function MapApp() {
                 </>
               )}
             </dd>
-            <dt>Elevation (200 m global DEM)</dt>
+            <dt>Elevation (MOLA, 463 m)</dt>
             <dd>{probe.global === null ? '–' : `${probe.global.toFixed(0)} m`}</dd>
           </dl>
         </div>

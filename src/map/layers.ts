@@ -215,6 +215,9 @@ export const LAYERS: LayerDef[] = [
   },
 ];
 
-/** The 3D ground: global MOLA + HRSC elevation (Esri) refined by the Jezero 20 m DTM. See JezeroElevationLayer. */
-export const GLOBAL_ELEVATION_URL = `${ASTRO}/MDEM200M/ImageServer`;
+/**
+ * The 3D ground outside Jezero: NASA MGS MOLA elevation (463 m), meters above the MOLA areoid,
+ * hosted by Esri (source: USGS, NASA). Refined by the Jezero 20 m DTM; see JezeroElevationLayer.
+ */
+export const GLOBAL_ELEVATION_URL = `${ASTRO}/MOLA/ImageServer`;
 export const globalElevationLayer = () => new ElevationLayer({ url: GLOBAL_ELEVATION_URL });
