@@ -81,6 +81,7 @@ export function App() {
     <>
       {mapMounted && (
         <MapApp
+          showRover={instant || phase === 'landed' || phase === 'done'}
           intro={
             instant
               ? undefined

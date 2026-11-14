@@ -150,7 +150,8 @@
 .lander[data-phase="flyaway"] .lander-dust { animation: ld-dust-puff 1.4s ease-out forwards; }
 @keyframes ld-dust-rise { from { opacity: 0; transform: scale(0.3); } to { opacity: 0.6; transform: scale(0.9); } }
 @keyframes ld-dust-puff { from { opacity: 0.7; transform: scale(0.9); } to { opacity: 0; transform: scale(1.7); } }
-.lander[data-phase="landed"] { opacity: 0; transition: opacity 0.8s ease 2.4s; }
+/* The 3D model takes over at the landing site: cross-fade once the mast is up. */
+.lander[data-phase="landed"] { opacity: 0; transition: opacity 1s ease 1.4s; }
 
 @media (max-width: 640px) {
   .home { --home-rocket-x: 86vw; --home-rocket-y: 88vh; }
