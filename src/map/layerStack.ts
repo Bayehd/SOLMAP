@@ -39,14 +39,13 @@ const NO_MAP_COLOR = '#2a2f3a'; // under the base map, where it has no tiles
 /** Laid over the base map on the slabs to soften its contrast, so the data drawn on top stands out. */
 const BASE_WASH = 'rgba(42, 47, 58, 0.5)';
 /** Opacity of the base map on the slabs: below 1 the slabs underneath show through. The data stays opaque. */
-const BASE_OPACITY = 0.7;
+const BASE_OPACITY = 0.5;
 
 /** Layer id → what its slab draws over the base map. Layers without an entry (the base maps) stay on the ground. */
-const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData) => void; relief?: boolean; detail?: (d: SliceData) => string }> = {
+const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData) => void; relief?: boolean }> = {
   'jezero-elevation': {
     draw: (ctx, d) => rasterOverlay(ctx, (k) => elevationColor(d.dtm[k], d.shade[k])),
     relief: true,
-    detail: (d) => `${Math.round(d.min)} to ${Math.round(d.max)} m · ${VERTICAL_EXAGGERATION}× vertical`,
   },
   'jezero-slope': {
     draw: (ctx, d) =>
@@ -56,11 +55,9 @@ const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData
         const c = SLOPE_CLASSES.find((c) => s < c.max) ?? SLOPE_CLASSES[SLOPE_CLASSES.length - 1];
         return c.painted ? c.color : null; // as on the map: walkable ground is left clear
       }),
-    detail: () => SLOPE_CLASSES.filter((c) => c.painted).map((c) => c.label).join(' · '),
   },
   'jezero-minerals': {
     draw: (ctx, d) => rasterOverlay(ctx, (k) => MINERAL_CLASSES[d.mineral[k] - 1]?.color ?? null),
-    detail: () => 'CRISM, uncolored = none detected or no coverage',
   },
   'm20-traverse': {
     draw: (ctx, d) => {
@@ -88,7 +85,6 @@ const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData
         ctx.moveTo(x, y - 20), ctx.lineTo(x + 20, y), ctx.lineTo(x, y + 20), ctx.lineTo(x - 20, y);
         ctx.fill();
       }),
-    detail: () => 'tiny at this scale: 10 tubes within ~100 m',
   },
 };
 
@@ -113,7 +109,7 @@ type TiledLayer = Layer & {
 };
 
 /** A slab as placed in the stack, for the labels: its corners at mid-height. */
-export type StackSlab = { id: string; title: string; detail: string; corners: Point[] };
+export type StackSlab = { id: string; title: string; corners: Point[] };
 
 let data: Promise<SliceData> | null = null;
 
@@ -155,7 +151,7 @@ export function createLayerStack() {
       const relief = SLABS[id].relief ? reliefGrid(d) : null;
       const height = t + (relief ? (d.max - d.min) * VERTICAL_EXAGGERATION : 0);
       graphics.push(new Graphic({ geometry: slabMesh(z, t, texture, relief), symbol: { type: 'mesh-3d', symbolLayers: [{ type: 'fill' }] } }));
-      slabs.unshift({ id, title: def.title, detail: SLABS[id].detail?.(d) ?? def.resolution, corners: corners(z + height / 2) });
+      slabs.unshift({ id, title: def.title, corners: corners(z + height / 2) });
       z += height + GAP * SIZE_M;
     }
     // Dashed guides from the ground up to the bottom of the stack.

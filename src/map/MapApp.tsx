@@ -380,7 +380,6 @@ export function MapApp({
             return (
               <div key={p.id} className="slab-label" style={{ left: p.x, top: p.y }}>
                 <span>{s.title}</span>
-                <small>{s.detail}</small>
               </div>
             );
           })}
