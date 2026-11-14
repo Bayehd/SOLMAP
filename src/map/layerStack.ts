@@ -15,6 +15,8 @@ import ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
 import { ELEVATION_RAMP, LAYERS, MINERAL_CLASSES, SAMPLE_KINDS, SLOPE_CLASSES } from './layers';
 import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
 
+/** The slab that goes on top of the stack; the others stack from the ground up in catalog order. */
+const TOP_SLAB = 'jezero-elevation';
 /** Center and width of the cut-out: the rover's route from the crater floor up the delta (all inside the 20 m DTM). */
 const CENTER = { lon: 77.34, lat: 18.46 };
 const SLICE_M = 16_000;
@@ -113,11 +115,11 @@ export function createLayerStack() {
   const footprint = new GraphicsLayer({ id: 'side-footprint', title: 'Side view footprint', visible: false, elevationInfo: { mode: 'on-the-ground' } });
   let built = new Map<string, SlabArt>(); // textures are kept between rebuilds
 
-  /** Rebuild the stack with these layer ids, bottom to top. Returns the slabs placed, top to bottom. */
+  /** Rebuild the stack with these layer ids (TOP_SLAB moves to the top). Returns the slabs placed, top to bottom. */
   async function update(ids: string[]): Promise<StackSlab[]> {
     data ??= loadSliceData();
     const d = await data;
-    const ordered = ids.filter((id) => SLABS[id]);
+    const ordered = ids.filter((id) => SLABS[id] && id !== TOP_SLAB).concat(ids.includes(TOP_SLAB) ? [TOP_SLAB] : []);
     const art = new Map(ordered.map((id) => [id, built.get(id) ?? SLABS[id](d)]));
     built = new Map([...built, ...art]);
 

@@ -22,8 +22,8 @@ three views of Jezero: **3D** (tilted), **Side** and **Top** (straight down). Ev
 Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point.
 
 In the **Side** view, a 16 km square of Jezero around the rover's route is lifted off the ground and pulled
-apart into one see-through slab per checked data layer (elevation at the bottom, with 2× relief,
-then slope, minerals and the Perseverance layers), each labelled. The base maps stay on the ground.
+apart into one see-through slab per checked data layer (slope, minerals and the Perseverance layers
+from the ground up, with elevation on top, in 2× relief), each labelled. The base maps stay on the ground.
 
 ```sh
 npm install

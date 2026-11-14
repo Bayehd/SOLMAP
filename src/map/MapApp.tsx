@@ -215,7 +215,7 @@ export function MapApp({
     roverLayer.visible = showRover;
   }, [showRover, roverLayer]);
 
-  // Side view: one slab per checked data layer, in catalog order from the ground up. Framed once on entry.
+  // Side view: one slab per checked data layer, elevation on top (see layerStack.ts). Framed once on entry.
   const stackIds = LAYERS.filter((l) => STACKABLE.has(l.id) && visibility[l.id]).map((l) => l.id).join(',');
   const framed = useRef(false);
   useEffect(() => {
