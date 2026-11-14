@@ -1,4 +1,4 @@
-// SOLMAP data map: one ArcGIS Map of Mars shown as a 3D globe (SceneView) or a 2D map (MapView).
+// SOLMAP data map: one ArcGIS Map of Mars in a 3D SceneView, with 3D / Side / Top camera views of Jezero.
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type Layer from '@arcgis/core/layers/Layer';
 import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
@@ -6,17 +6,14 @@ import ArcGISMap from '@arcgis/core/Map';
 import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
 import { whenOnce } from '@arcgis/core/core/reactiveUtils';
-import MapView from '@arcgis/core/views/MapView';
 import SceneView from '@arcgis/core/views/SceneView';
-import type Viewpoint from '@arcgis/core/Viewpoint';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
-import { JEZERO_DTM_EXTENT, LANDING_SITE, jezeroExtent, landingExtent, marsSR, marsTileInfo } from './mars';
+import { JEZERO_DTM_EXTENT, LANDING_SITE, jezeroExtent, landingExtent, marsSR } from './mars';
 import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './map.css';
 
-type Mode = '3d' | '2d';
 type Probe = {
   lon: number;
   lat: number;
@@ -44,6 +41,31 @@ export type MapIntro = {
 const globeCamera = () =>
   new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
 
+// Camera views of the Jezero area.
+type CameraView = '3d' | 'side' | 'top';
+const CAMERA_VIEWS: { id: CameraView; label: string }[] = [
+  { id: '3d', label: '3D' },
+  { id: 'side', label: 'Side' },
+  { id: 'top', label: 'Top' },
+];
+const JEZERO_CENTER = {
+  lon: (JEZERO_DTM_EXTENT.xmin + JEZERO_DTM_EXTENT.xmax) / 2,
+  lat: (JEZERO_DTM_EXTENT.ymin + JEZERO_DTM_EXTENT.ymax) / 2,
+};
+const SIDE_DISTANCE_DEG = 0.42; // side view: camera this far south of the centre (~25 km) ...
+const SIDE_HEIGHT_M = -2600 + 3500; // ... about 3.5 km above the crater floor ...
+const SIDE_TILT = 84; // ... looking almost level across the crater (90 = horizontal)
+
+function cameraFor(v: CameraView) {
+  if (v === '3d') return { target: jezeroExtent(), tilt: 55, heading: 0 };
+  if (v === 'top') return { target: jezeroExtent(), tilt: 0, heading: 0 };
+  return new Camera({
+    position: new Point({ x: JEZERO_CENTER.lon, y: JEZERO_CENTER.lat - SIDE_DISTANCE_DEG, z: SIDE_HEIGHT_M, spatialReference: marsSR() }),
+    heading: 0,
+    tilt: SIDE_TILT,
+  });
+}
+
 export function MapApp({
   intro,
   showRover = false,
@@ -64,9 +86,8 @@ export function MapApp({
   const introRef = useRef(intro);
   introRef.current = intro;
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<MapView | SceneView | null>(null);
-  const viewpointRef = useRef<Viewpoint | null>(null);
-  const [mode, setMode] = useState<Mode>('3d');
+  const viewRef = useRef<SceneView | null>(null);
+  const [cameraView, setCameraView] = useState<CameraView>('3d');
   const [visibility, setVisibility] = useState<Record<string, boolean>>(initialVisibility);
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
@@ -97,32 +118,29 @@ export function MapApp({
     for (const def of LAYERS) layers[def.id].visible = visibility[def.id];
   }, [visibility, layers]);
 
-  // (Re)create the view when the mode changes, keeping the camera where it was.
   useEffect(() => {
-    const container = containerRef.current!;
-    const common = { container, map, spatialReference: marsSR(), popupEnabled: false };
-    const view =
-      mode === '3d'
-        ? new SceneView({ ...common, qualityProfile: 'high', environment: { lighting: { type: 'virtual' } } })
-        : new MapView({ ...common, constraints: { rotationEnabled: false, lods: marsTileInfo().lods } });
+    const view = new SceneView({
+      container: containerRef.current!,
+      map,
+      spatialReference: marsSR(),
+      popupEnabled: false,
+      qualityProfile: 'high',
+      environment: { lighting: { type: 'virtual' } },
+    });
     viewRef.current = view;
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
     view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
-    // The 3D model is a 3D-only symbol; the 2D map doesn't show it.
-    const rover = view instanceof SceneView ? attachRover(view, roverLayer, setDrive) : null;
+    const rover = attachRover(view, roverLayer, setDrive);
     roverRef.current = rover;
     if (roverControlRef.current) roverControlRef.current.current = rover;
-    if (!rover) setDrive((d) => ({ ...d, playing: false }));
 
     view.when(() => {
-      if (viewpointRef.current) view.viewpoint = viewpointRef.current;
-      else if (introRef.current && view instanceof SceneView) {
+      if (introRef.current) {
         view.goTo(globeCamera(), { animate: false });
         // Wait for the globe tiles (at most 6 s) so the home page fades onto a loaded planet.
         const loaded = whenOnce(() => !view.updating);
         Promise.race([loaded, new Promise((r) => setTimeout(r, 6000))]).then(() => introRef.current?.onReady());
-      } else if (view instanceof SceneView) view.goTo({ target: jezeroExtent(), tilt: 55 }, { animate: false });
-      else view.goTo(jezeroExtent(), { animate: false });
+      } else view.goTo(cameraFor('3d'), { animate: false });
     });
 
     const click = view.on('click', async (event) => {
@@ -158,9 +176,8 @@ export function MapApp({
     });
 
     return () => {
-      if (view.ready) viewpointRef.current = view.viewpoint?.clone() ?? null;
       click.remove();
-      rover?.remove();
+      rover.remove();
       if (roverRef.current === rover) roverRef.current = null;
       if (roverControlRef.current?.current === rover) roverControlRef.current.current = null;
       // Detach the shared Map first: destroying a view also destroys its map and layers.
@@ -168,17 +185,17 @@ export function MapApp({
       view.destroy();
       viewRef.current = null;
     };
-  }, [mode, map, layers, globalElevation, roverLayer]);
+  }, [map, layers, globalElevation, roverLayer]);
 
   useEffect(() => {
-    roverLayer.visible = showRover && mode === '3d';
-  }, [showRover, mode, roverLayer]);
+    roverLayer.visible = showRover;
+  }, [showRover, roverLayer]);
 
   // Intro flight: globe -> Jezero, slow enough to read as a descent.
   const fly = intro?.fly ?? false;
   useEffect(() => {
     const view = viewRef.current;
-    if (!fly || !(view instanceof SceneView)) return;
+    if (!fly || !view) return;
     let cancelled = false;
     view
       .when(() => view.goTo({ target: landingExtent(), tilt: 55 }, { duration: 5000, easing: 'cubic-in-out' }))
@@ -196,15 +213,9 @@ export function MapApp({
       return next;
     });
 
-  const goJezero = () => {
-    const view = viewRef.current;
-    if (view instanceof SceneView) view.goTo({ target: jezeroExtent(), tilt: 55 });
-    else view?.goTo(jezeroExtent());
-  };
-  const goGlobe = () => {
-    const view = viewRef.current;
-    if (view instanceof SceneView) view.goTo(globeCamera());
-    else view?.goTo({ center: [77.4, 18.4], scale: 60_000_000 });
+  const showView = (v: CameraView) => {
+    setCameraView(v);
+    viewRef.current?.goTo(cameraFor(v), { duration: 1500 }).catch(() => {});
   };
 
   // The rocket takes off from wherever the rover is (the landing site until it has driven).
@@ -216,7 +227,7 @@ export function MapApp({
       .then((r) => (r.geometry as Point).z ?? 0)
       .catch(() => 0);
     const site = new Point({ x: lon, y: lat, z: ground, spatialReference: marsSR() });
-    const p = view instanceof SceneView ? view.toScreen(site) : view?.toScreen(site);
+    const p = view?.toScreen(site);
     const onScreen = p && view && p.x > 0 && p.y > 0 && p.x < view.width && p.y < view.height;
     onTravel?.(onScreen ? { x: p.x, y: p.y } : null);
   };
@@ -237,21 +248,15 @@ export function MapApp({
           </p>
         )}
         <div className="row">
-          <div className="segmented" role="group" aria-label="View">
-            {(['3d', '2d'] as Mode[]).map((m) => (
-              <button key={m} className="btn" aria-pressed={mode === m} onClick={() => setMode(m)}>
-                {m === '3d' ? '3D globe' : '2D map'}
+          <div className="segmented" role="group" aria-label="Camera view">
+            {CAMERA_VIEWS.map(({ id, label }) => (
+              <button key={id} className="btn" aria-pressed={cameraView === id} onClick={() => showView(id)}>
+                {label}
               </button>
             ))}
           </div>
-          <button className="btn" onClick={goJezero}>
-            Jezero
-          </button>
-          <button className="btn" onClick={goGlobe}>
-            Whole planet
-          </button>
         </div>
-        {showRover && mode === '3d' && (
+        {showRover && (
           <div className="row drive-row">
             <button className="btn" onClick={() => roverRef.current?.toggleDrive()} disabled={!canTravel || !drive.ready}>
               {drive.playing ? 'Pause' : drive.km > 0 && drive.km < drive.totalKm ? 'Resume drive' : 'Drive route'}

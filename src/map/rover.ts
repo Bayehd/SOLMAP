@@ -18,7 +18,7 @@ export const ROVER_CREDIT = {
 
 const REAL_HEIGHT_M = 2.2; // Perseverance is about 2.2 m tall
 export const ROVER_WIDTH_PER_HEIGHT = 2.7 / 2.2; // model footprint width / height
-const SCREEN_HEIGHT_PX = 90; // how tall it is drawn while the camera is too far away to see it at real size
+const SCREEN_HEIGHT_PX = 40; // how tall it is drawn while the camera is too far away to see it at real size
 const SITE_ELEVATION_M = -2570; // ground height at the landing site, until the terrain query answers
 const PARKED_HEADING = 120; // degrees, so the parked model is seen from its side in the default view
 const MODEL_HEADING_OFFSET = 180; // added to the direction of travel so the model drives arm (front) first
