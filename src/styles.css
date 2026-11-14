@@ -30,5 +30,6 @@
 .segmented { display: inline-flex; }
 .segmented .btn { border-radius: 0; }
 .segmented .btn:first-child { border-radius: 8px 0 0 8px; }
-.segmented .btn:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+.segmented .btn:last-child { border-radius: 0 8px 8px 0; }
+.segmented .btn + .btn { border-left: none; }
 .segmented .btn[aria-pressed="true"] { background: var(--accent); color: #1a1410; border-color: var(--accent); }

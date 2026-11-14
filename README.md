@@ -21,6 +21,10 @@ An ArcGIS Maps SDK for JavaScript map of Mars with real data layers, shown as a
 **3D globe** or a **2D map** (same layers in both). Everything is in GCS Mars 2000
 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point.
 
+**Side** view: a 16 km square of Jezero around the rover's route is lifted off the ground and pulled
+apart into one see-through slab per checked data layer (elevation at the bottom, with 2× relief,
+then slope, minerals and the Perseverance layers), each labelled. The base maps stay on the ground.
+
 ```sh
 npm install
 npm run dev     # http://localhost:5173
@@ -64,6 +68,8 @@ PDS file gives it. The tube lies under the rover, within about a meter of the po
 
 - `src/map/layers.ts`: the layer catalog. **To add a layer, add an entry to `LAYERS`**
   with its title, group, source and a `create()` that returns an ArcGIS layer.
+- `src/map/layerStack.ts`: the Side view stack. Each layer's slab look is in `SLABS`; the
+  square's center and size are `CENTER` and `SLICE_M`.
 - `src/map/geojson.ts`: `marsGeoJSONLayer()` for GeoJSON in Mars lon/lat. Use it instead of
   ArcGIS's `GeoJSONLayer`, which assumes Earth (WGS84) coordinates.
 - `src/map/JezeroElevationLayer.ts`: the 3D ground (global DEM + Jezero 20 m DTM, feathered

@@ -1,22 +1,26 @@
-// SOLMAP data map: one ArcGIS Map of Mars shown as a 3D globe (SceneView) or a 2D map (MapView).
+// SOLMAP data map: one ArcGIS Map of Mars shown as a 3D globe (SceneView), a 2D map (MapView), or the Side view:
+// a 3D view where the data layers are lifted off the ground into a stack of separate slabs (layerStack.ts).
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type Layer from '@arcgis/core/layers/Layer';
 import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
 import ArcGISMap from '@arcgis/core/Map';
 import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
-import { whenOnce } from '@arcgis/core/core/reactiveUtils';
+import { watch, whenOnce } from '@arcgis/core/core/reactiveUtils';
 import MapView from '@arcgis/core/views/MapView';
 import SceneView from '@arcgis/core/views/SceneView';
 import type Viewpoint from '@arcgis/core/Viewpoint';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
+import { STACKABLE, createLayerStack, type StackSlab } from './layerStack';
 import { JEZERO_DTM_EXTENT, jezeroExtent, landingExtent, marsSR, marsTileInfo } from './mars';
 import { ROVER_CREDIT, attachRover, createRoverLayer, type RoverControl } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './map.css';
 
-type Mode = '3d' | '2d';
+type Mode = '3d' | '2d' | 'side';
+const MODE_LABELS: Record<Mode, string> = { '3d': '3D globe', '2d': '2D map', side: 'Side' };
+const LABEL_GAP_PX = 24;
 type Probe = {
   lon: number;
   lat: number;
@@ -74,9 +78,11 @@ export function MapApp({
   const [visibility, setVisibility] = useState<Record<string, boolean>>(initialVisibility);
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
+  const [slabs, setSlabs] = useState<StackSlab[]>([]);
+  const [labelPos, setLabelPos] = useState<{ id: string; x: number; y: number }[]>([]);
 
   // One Map and one set of layers for both views, so a toggle applies to both.
-  const { map, layers, globalElevation, roverLayer } = useMemo(() => {
+  const { map, layers, globalElevation, roverLayer, stack } = useMemo(() => {
     const layers: Record<string, Layer> = {};
     for (const def of LAYERS) {
       const layer = def.create();
@@ -88,33 +94,36 @@ export function MapApp({
     }
     const globalElevation = globalElevationLayer();
     const roverLayer = createRoverLayer();
+    const stack = createLayerStack();
     const map = new ArcGISMap({
-      layers: [...LAYERS.map((d) => layers[d.id]), roverLayer],
+      layers: [...LAYERS.map((d) => layers[d.id]), roverLayer, ...stack.layers],
       ground: { layers: [createJezeroElevationLayer(globalElevation)] },
     });
-    return { map, layers, globalElevation, roverLayer };
+    return { map, layers, globalElevation, roverLayer, stack };
   }, []);
 
+  // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
-    for (const def of LAYERS) layers[def.id].visible = visibility[def.id];
-  }, [visibility, layers]);
+    for (const def of LAYERS) layers[def.id].visible = visibility[def.id] && !(mode === 'side' && STACKABLE.has(def.id));
+  }, [visibility, layers, mode]);
 
   // (Re)create the view when the mode changes, keeping the camera where it was.
   useEffect(() => {
     const container = containerRef.current!;
     const common = { container, map, spatialReference: marsSR(), popupEnabled: false };
     const view =
-      mode === '3d'
+      mode !== '2d'
         ? new SceneView({ ...common, qualityProfile: 'high', environment: { lighting: { type: 'virtual' } } })
         : new MapView({ ...common, constraints: { rotationEnabled: false, lods: marsTileInfo().lods } });
     viewRef.current = view;
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
     view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
     // The 3D model is a 3D-only symbol; the 2D map doesn't show it.
-    const rover = view instanceof SceneView ? attachRover(view, roverLayer) : null;
+    const rover = mode === '3d' && view instanceof SceneView ? attachRover(view, roverLayer) : null;
     if (roverControlRef.current) roverControlRef.current.current = rover;
 
     view.when(() => {
+      if (mode === 'side') return; // the stack effect frames the stack
       if (viewpointRef.current) view.viewpoint = viewpointRef.current;
       else if (introRef.current && view instanceof SceneView) {
         view.goTo(globeCamera(), { animate: false });
@@ -127,7 +136,7 @@ export function MapApp({
 
     const click = view.on('click', async (event) => {
       const p = event.mapPoint;
-      if (!p) return;
+      if (!p || mode === 'side') return;
       const point = new Point({ x: p.longitude ?? p.x, y: p.latitude ?? p.y, spatialReference: marsSR() });
       const inDtm =
         point.x >= JEZERO_DTM_EXTENT.xmin && point.x <= JEZERO_DTM_EXTENT.xmax && point.y >= JEZERO_DTM_EXTENT.ymin && point.y <= JEZERO_DTM_EXTENT.ymax;
@@ -175,6 +184,51 @@ export function MapApp({
   useEffect(() => {
     roverLayer.visible = showRover && mode === '3d';
   }, [showRover, mode, roverLayer]);
+
+  // Side view: one slab per checked data layer, in catalog order from the ground up. Framed once on entry.
+  const stackIds = LAYERS.filter((l) => STACKABLE.has(l.id) && visibility[l.id]).map((l) => l.id).join(',');
+  const framed = useRef(false);
+  useEffect(() => {
+    const side = mode === 'side';
+    for (const l of stack.layers) l.visible = side;
+    if (!side) {
+      framed.current = false;
+      setSlabs([]);
+      return;
+    }
+    let cancelled = false;
+    stack
+      .update(stackIds ? stackIds.split(',') : [])
+      .then((placed) => {
+        if (cancelled) return;
+        setSlabs(placed);
+        const view = viewRef.current;
+        if (framed.current || !(view instanceof SceneView) || !placed.length) return;
+        framed.current = true;
+        view.when(() => view.goTo({ target: stack.stack.graphics.toArray(), heading: 35, tilt: 62 }, { animate: false }));
+      })
+      .catch((err) => console.error('Could not build the layer stack', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, stackIds, stack]);
+
+  // Slab labels sit to the left of the stack (the layer panel is on the right), level with each slab.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (mode !== 'side' || !(view instanceof SceneView) || !slabs.length) {
+      setLabelPos([]);
+      return;
+    }
+    const place = () => {
+      const screen = slabs.map((s) => ({ id: s.id, pts: s.corners.flatMap((c) => view.toScreen(c) ?? []) }));
+      const left = Math.min(...screen.flatMap((s) => s.pts.map((q) => q.x)));
+      if (!Number.isFinite(left)) return;
+      setLabelPos(screen.map((s) => ({ id: s.id, x: left - LABEL_GAP_PX, y: s.pts.reduce((a, q) => a + q.y, 0) / s.pts.length })));
+    };
+    const handle = watch(() => [view.camera, view.ready], place, { initial: true });
+    return () => handle.remove();
+  }, [mode, slabs]);
 
   // Intro flight: globe -> Jezero, slow enough to read as a descent.
   const fly = intro?.fly ?? false;
@@ -234,9 +288,9 @@ export function MapApp({
         )}
         <div className="row">
           <div className="segmented" role="group" aria-label="View">
-            {(['3d', '2d'] as Mode[]).map((m) => (
+            {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
               <button key={m} className="btn" aria-pressed={mode === m} onClick={() => setMode(m)}>
-                {m === '3d' ? '3D globe' : '2D map'}
+                {MODE_LABELS[m]}
               </button>
             ))}
           </div>
@@ -248,6 +302,21 @@ export function MapApp({
           </button>
         </div>
       </div>
+
+      {mode === 'side' && (
+        <div className="stack-labels" aria-hidden="true">
+          {labelPos.map((p) => {
+            const s = slabs.find((x) => x.id === p.id)!;
+            return (
+              <div key={p.id} className="slab-label" style={{ left: p.x, top: p.y }}>
+                <span>{s.title}</span>
+                <small>{s.detail}</small>
+              </div>
+            );
+          })}
+          {!slabs.length && <p className="stack-hint muted small">Check a data layer to add it to the stack.</p>}
+        </div>
+      )}
 
       <div className="map-right">
       <div className="layer-panel panel" data-open={panelOpen}>
