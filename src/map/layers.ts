@@ -8,6 +8,7 @@ import * as rasterFunctionUtils from '@arcgis/core/layers/support/rasterFunction
 import RasterColormapRenderer from '@arcgis/core/renderers/RasterColormapRenderer';
 import RasterShadedReliefRenderer from '@arcgis/core/renderers/RasterShadedReliefRenderer';
 import SimpleRenderer from '@arcgis/core/renderers/SimpleRenderer';
+import UniqueValueRenderer from '@arcgis/core/renderers/UniqueValueRenderer';
 import MultipartColorRamp from '@arcgis/core/rest/support/MultipartColorRamp';
 import { marsGeoJSONLayer } from './geojson';
 import { METERS_PER_DEGREE, publicUrl } from './mars';
@@ -71,6 +72,13 @@ const ELEVATION_RAMP: { at: number; color: number[] }[] = [
   { at: -1800, color: [230, 196, 92] },
   { at: -1516, color: [250, 245, 225] },
 ];
+
+/** Perseverance sample types, as `kind` in m20_samples.geojson (scripts/build_jezero_layers.py). */
+export const SAMPLE_KINDS = [
+  { label: 'Rock core', color: [0, 229, 255] },
+  { label: 'Regolith', color: [255, 140, 66] },
+  { label: 'Atmospheric', color: [235, 235, 235] },
+] as const;
 
 export const LAYERS: LayerDef[] = [
   {
@@ -237,6 +245,39 @@ export const LAYERS: LayerDef[] = [
         elevationInfo: { mode: 'on-the-ground' },
         renderer: new SimpleRenderer({
           symbol: { type: 'simple-marker', size: 5, color: [255, 209, 102], outline: { color: [30, 20, 10], width: 0.5 } },
+        }),
+      }),
+  },
+  {
+    id: 'm20-samples',
+    title: 'Samples collected',
+    group: 'Perseverance',
+    visible: true,
+    kind: 'data',
+    resolution: '28 sealed samples, to sol 1441',
+    description:
+      'Where Perseverance sealed each of its samples, placed at the rover position on that sol. Click a point for its name.',
+    source: { name: 'NASA Mars 2020 rock sample list + MMGIS rover positions', url: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/' },
+    legend: SAMPLE_KINDS.map((k) => ({ color: `rgb(${k.color.join(',')})`, label: k.label })),
+    create: () =>
+      marsGeoJSONLayer({
+        url: publicUrl('data/jezero/m20_samples.geojson'),
+        geometryType: 'point',
+        fields: [
+          { name: 'number', type: 'integer' },
+          { name: 'name', type: 'string' },
+          { name: 'kind', type: 'string' },
+          { name: 'sol', type: 'integer' },
+        ],
+        outFields: ['*'],
+        elevationInfo: { mode: 'on-the-ground' },
+        renderer: new UniqueValueRenderer({
+          field: 'kind',
+          uniqueValueInfos: SAMPLE_KINDS.map((k) => ({
+            value: k.label,
+            label: k.label,
+            symbol: { type: 'simple-marker', size: 6, color: [...k.color], outline: { color: [20, 20, 20], width: 0.75 } },
+          })),
         }),
       }),
   },

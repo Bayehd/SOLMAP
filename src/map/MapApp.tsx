@@ -24,6 +24,7 @@ type Probe = {
   slope: number | null; // degrees
   global: number | null; // m, MOLA 463 m
   mineral: number | null; // MINERAL_CLASSES index + 1, 0 = none
+  sample: { number: number; name: string; kind: string; sol: number } | null; // clicked sample point
 };
 
 const initialVisibility = () => Object.fromEntries(LAYERS.map((l) => [l.id, l.visible]));
@@ -115,7 +116,14 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
         const v = r.value?.[0];
         return v === undefined || v === null || v <= -32767 ? null : v;
       };
-      const [dtm, slope, mineral, global] = await Promise.all([
+      const sampleHit = view
+        .hitTest(event, { include: [layers['m20-samples']] })
+        .then((h) => {
+          const g = h.results.find((r) => r.type === 'graphic')?.graphic;
+          return g ? (g.attributes as NonNullable<Probe['sample']>) : null;
+        })
+        .catch(() => null);
+      const [dtm, slope, mineral, global, sample] = await Promise.all([
         pixel('jezero-elevation'),
         pixel('jezero-slope'),
         pixel('jezero-minerals'),
@@ -123,8 +131,9 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
           .queryElevation(point)
           .then((r) => ((r.geometry as Point).z ?? null))
           .catch(() => null),
+        sampleHit,
       ]);
-      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm ? (mineral ?? 0) : null });
+      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm ? (mineral ?? 0) : null, sample });
     });
 
     return () => {
@@ -261,6 +270,14 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
             ×
           </button>
           <dl>
+            {probe.sample && (
+              <>
+                <dt>Sample</dt>
+                <dd>
+                  #{probe.sample.number} {probe.sample.name} ({probe.sample.kind.toLowerCase()}, sealed sol {probe.sample.sol})
+                </dd>
+              </>
+            )}
             <dt>Position</dt>
             <dd>
               {probe.lat.toFixed(5)}° N, {probe.lon.toFixed(5)}° E
