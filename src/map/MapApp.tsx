@@ -5,10 +5,11 @@ import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
 import ArcGISMap from '@arcgis/core/Map';
 import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
+import { whenOnce } from '@arcgis/core/core/reactiveUtils';
 import MapView from '@arcgis/core/views/MapView';
 import SceneView from '@arcgis/core/views/SceneView';
 import type Viewpoint from '@arcgis/core/Viewpoint';
-import { LAYERS, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
+import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
 import { JEZERO_DTM_EXTENT, jezeroExtent, marsSR, marsTileInfo } from './mars';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
@@ -21,6 +22,7 @@ type Probe = {
   dtm: number | null; // m, 20 m DTM
   slope: number | null; // degrees
   global: number | null; // m, MOLA 463 m
+  mineral: number | null; // MINERAL_CLASSES index + 1, 0 = none
 };
 
 const initialVisibility = () => Object.fromEntries(LAYERS.map((l) => [l.id, l.visible]));
@@ -30,7 +32,19 @@ function slopeClass(deg: number) {
   return SLOPE_CLASSES.find((c) => deg < c.max) ?? SLOPE_CLASSES[SLOPE_CLASSES.length - 1];
 }
 
-export function MapApp() {
+/** Opening sequence from the home page: start on the whole planet, then fly down to Jezero. */
+export type MapIntro = {
+  fly: boolean; // set once the home page is out of the way
+  onReady: () => void; // the globe has loaded
+  onArrive: () => void; // the camera has reached Jezero
+};
+
+const globeCamera = () =>
+  new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
+
+export function MapApp({ intro }: { intro?: MapIntro } = {}) {
+  const introRef = useRef(intro);
+  introRef.current = intro;
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<MapView | SceneView | null>(null);
   const viewpointRef = useRef<Viewpoint | null>(null);
@@ -76,7 +90,12 @@ export function MapApp() {
 
     view.when(() => {
       if (viewpointRef.current) view.viewpoint = viewpointRef.current;
-      else if (view instanceof SceneView) view.goTo({ target: jezeroExtent(), tilt: 55 }, { animate: false });
+      else if (introRef.current && view instanceof SceneView) {
+        view.goTo(globeCamera(), { animate: false });
+        // Wait for the globe tiles (at most 6 s) so the home page fades onto a loaded planet.
+        const loaded = whenOnce(() => !view.updating);
+        Promise.race([loaded, new Promise((r) => setTimeout(r, 6000))]).then(() => introRef.current?.onReady());
+      } else if (view instanceof SceneView) view.goTo({ target: jezeroExtent(), tilt: 55 }, { animate: false });
       else view.goTo(jezeroExtent(), { animate: false });
     });
 
@@ -92,15 +111,16 @@ export function MapApp() {
         const v = r.value?.[0];
         return v === undefined || v === null || v <= -32767 ? null : v;
       };
-      const [dtm, slope, global] = await Promise.all([
+      const [dtm, slope, mineral, global] = await Promise.all([
         pixel('jezero-elevation'),
         pixel('jezero-slope'),
+        pixel('jezero-minerals'),
         globalElevation
           .queryElevation(point)
           .then((r) => ((r.geometry as Point).z ?? null))
           .catch(() => null),
       ]);
-      setProbe({ lon: point.x, lat: point.y, dtm, slope, global });
+      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm ? (mineral ?? 0) : null });
     });
 
     return () => {
@@ -112,6 +132,21 @@ export function MapApp() {
       viewRef.current = null;
     };
   }, [mode, map, layers, globalElevation]);
+
+  // Intro flight: globe -> Jezero, slow enough to read as a descent.
+  const fly = intro?.fly ?? false;
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!fly || !(view instanceof SceneView)) return;
+    let cancelled = false;
+    view
+      .when(() => view.goTo({ target: jezeroExtent(), tilt: 55 }, { duration: 5000, easing: 'cubic-in-out' }))
+      .catch(() => {}) // interrupted by the user: land anyway
+      .then(() => !cancelled && introRef.current?.onArrive());
+    return () => {
+      cancelled = true;
+    };
+  }, [fly]);
 
   const toggle = (def: LayerDef) =>
     setVisibility((v) => {
@@ -127,7 +162,7 @@ export function MapApp() {
   };
   const goGlobe = () => {
     const view = viewRef.current;
-    if (view instanceof SceneView) view.goTo(new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 }));
+    if (view instanceof SceneView) view.goTo(globeCamera());
     else view?.goTo({ center: [77.4, 18.4], scale: 60_000_000 });
   };
 
@@ -221,6 +256,15 @@ export function MapApp() {
                 <>
                   {probe.slope.toFixed(1)}° <span className="swatch" style={{ background: `rgb(${slopeClass(probe.slope).color.join(',')})` }} />{' '}
                   {slopeClass(probe.slope).label}
+                </>
+              )}
+            </dd>
+            <dt>Mineral (CRISM)</dt>
+            <dd>
+              {probe.mineral === null ? '–' : probe.mineral === 0 ? 'none detected or no coverage' : (
+                <>
+                  <span className="swatch" style={{ background: `rgb(${MINERAL_CLASSES[probe.mineral - 1].color.join(',')})` }} />{' '}
+                  {MINERAL_CLASSES[probe.mineral - 1].label}
                 </>
               )}
             </dd>
