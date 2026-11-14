@@ -269,29 +269,7 @@ export function MapApp({
                       onClick={() => def.basemap && visibility[def.id] && toggle(def)}
                     />
                     <span>{def.title}</span>
-                    <span className={`badge badge-${def.kind}`}>{def.kind}</span>
                   </label>
-                  {visibility[def.id] && (
-                    <div className="layer-detail">
-                      <p className="muted small">{def.description}</p>
-                      {def.legend && (
-                        <ul className="legend">
-                          {def.legend.map((item) => (
-                            <li key={item.label}>
-                              <span className="swatch" style={{ background: item.color }} />
-                              {item.label}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <p className="muted small">
-                        {def.resolution} ·{' '}
-                        <a className="link" href={def.source.url} target="_blank" rel="noreferrer">
-                          {def.source.name}
-                        </a>
-                      </p>
-                    </div>
-                  )}
                 </div>
               ))}
             </section>
