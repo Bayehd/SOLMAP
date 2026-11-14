@@ -10,6 +10,7 @@ Outputs (all in GCS Mars 2000 Sphere, the CRS of ArcGIS wkid 104971):
   m20_traverse.geojson Perseverance drive path
   m20_waypoints.geojson Perseverance end-of-drive positions
   m20_samples.geojson  Where Perseverance collected its sealed samples
+  m20_depot.geojson    Where Perseverance left 10 sample tubes at the Three Forks depot
 
 Sources:
   DTM: USGS Astrogeology, Mars 2020 Terrain Relative Navigation CTX DTM mosaic
@@ -17,8 +18,11 @@ Sources:
   Rover: NASA/JPL Mars 2020 MMGIS traverse and waypoint layers.
   Samples: NASA Mars 2020 rock sample list (number, name, type, sol sealed),
        https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/
+  Depot: NASA PDS Geosciences Node, Mars 2020 Three Forks sample depot bundle,
+       sample_tube_locations.csv (rover position at each tube drop).
 """
 import argparse
+import csv
 import json
 import math
 import shutil
@@ -40,6 +44,8 @@ DTM_URL = ('https://planetarymaps.usgs.gov/mosaic/mars2020_trn/CTX/'
            'JEZ_ctx_B_soc_008_DTM_MOLAtopography_DeltaGeoid_20m_Eqc_latTs0_lon0.tif')
 TRAVERSE_URL = 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_traverse.json'
 WAYPOINTS_URL = 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_waypoints.json'
+DEPOT_URL = ('https://pds-geosciences.wustl.edu/m2020/urn-nasa-pds-mars2020_sample_depot_three_forks/'
+             'miscellaneous/sample_metadata/sample_tube_locations.csv')
 
 MARS_RADIUS_M = 3396190.0  # Mars 2000 IAU sphere, as in the DTM's CRS
 NODATA = -32768.0
@@ -207,9 +213,25 @@ def build_rover() -> None:
     print(f'  rover data runs to sol {last_sol}')
 
 
+def build_depot() -> None:
+    # The PDS file gives the rover position at each drop; the tube lies under the rover, within about 1 m.
+    rows = list(csv.DictReader(fetch(DEPOT_URL, CACHE / 'sample_tube_locations.csv').read_text().splitlines()))
+    feats = [{'type': 'Feature',
+              'properties': {'name': r['Sample Name'].strip(), 'sol': int(r['Dropoff Sol'])},
+              'geometry': {'type': 'Point',
+                           'coordinates': [round(float(r['Rover Longitude']), 8), round(float(r['Rover Latitude']), 8)]}}
+             for r in rows]
+    path = OUT / 'm20_depot.geojson'
+    path.write_text(json.dumps({'type': 'FeatureCollection', 'name': 'M20_three_forks_depot', 'features': feats},
+                               separators=(',', ':')))
+    print(f'  wrote {path.relative_to(ROOT)} ({len(feats)} features)')
+
+
 if __name__ == '__main__':
     argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     print('Rasters:')
     build_rasters()
     print('Rover:')
     build_rover()
+    print('Depot:')
+    build_depot()

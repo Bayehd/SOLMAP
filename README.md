@@ -38,6 +38,7 @@ npm run build
 | Jezero minerals (off by default) | NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node), 4 observations from 2007 | 18 m/px, smoothed to ~90 m | derived |
 | Perseverance traverse and stops | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
 | Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions | 28 sealed samples, to sol 1441 | data |
+| Three Forks sample depot | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
 
 **Assumption:** the slope classes (walkable < 15°, caution 15–25°, no-go ≥ 25°) are
 placeholders, not a NASA standard. Change them in `SLOPE_CLASSES` in `src/map/layers.ts`.
@@ -55,6 +56,9 @@ thresholds in `CLASSES` in `scripts/build_jezero_minerals.py` and rebuild.
 (its last drive end before the sealing sol), so it marks the workspace, not the exact borehole
 (a few meters off). Bell Island and Gallants have no sealing sol yet and are not shown. Update
 `SAMPLES` in `scripts/build_jezero_layers.py` as NASA adds samples. Click a point to see its name.
+
+**Assumption:** each depot point is the rover's position when it dropped that tube, as NASA's
+PDS file gives it. The tube lies under the rover, within about a meter of the point.
 
 ### Code
 
@@ -77,13 +81,14 @@ python3 -m venv .venv && .venv/bin/pip install -r scripts/requirements.txt
 .venv/bin/python scripts/build_jezero_layers.py
 ```
 
-It downloads the USGS DTM and the NASA rover GeoJSON (cached in `scripts/.cache/`) and writes:
+It downloads the USGS DTM, the NASA rover GeoJSON and the PDS depot table (cached in `scripts/.cache/`) and writes:
 - `ctx_dtm_20m.tif`, `ctx_slope_20m.tif`: Float32 GeoTIFFs in GCS Mars 2000, 512 px tiles with
   overviews, LERC-compressed with at most 1 cm (or 0.01°) error. The DTM's equirectangular
   projection (standard parallel 0°) converts to lon/lat by an exact rescale, so no value is
   resampled. The CRS is stored as an Esri WKT, the only non-EPSG form ArcGIS reads.
 - `m20_traverse.geojson`, `m20_waypoints.geojson`: the rover path and stops, geometry only.
 - `m20_samples.geojson`: one point per sealed sample (number, name, type, sol sealed).
+- `m20_depot.geojson`: one point per tube left at the Three Forks depot (name, sol dropped).
 
 The mineral layer is built by a second script, after the first (it uses the DTM grid):
 
