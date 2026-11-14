@@ -6,13 +6,13 @@ import { MapApp } from './map/MapApp';
 import { EarthApp } from './earth/EarthApp';
 import { Rocket } from './home/Rocket';
 import { Lander } from './home/Lander';
+import type { RoverControl } from './map/rover';
 import './home/home.css';
 
 // Rocket: idle (on the pad) · ignite · launch (boosters separate on the way up) · waiting (off-screen while the camera flies)
-// Lander: approach (placed above the site, no transition) · descend (powered descent, rover tucked in)
-//         · lower (sky crane lowers the rover) · flyaway (bridles cut, descent stage leaves) · landed (rover raises its mast)
-// done: everything gone, just the map
-type Phase = 'idle' | 'ignite' | 'launch' | 'waiting' | 'approach' | 'descend' | 'lower' | 'flyaway' | 'landed' | 'done';
+// landing: the sky crane brings the 3D rover down onto Jezero (timed by <Lander>)
+// done: the rover stays on the terrain, just the map
+type Phase = 'idle' | 'ignite' | 'launch' | 'waiting' | 'landing' | 'done';
 
 // Trip between planets: ignite -> launch (Atlas V lifts off, black star curtain fades in)
 // -> transit (planets swapped; the curtain stays until the new globe has loaded) -> none.
@@ -22,13 +22,8 @@ type Pad = { x: number; y: number };
 
 const IGNITE_MS = 900;
 const LAUNCH_MS = 2400;
-const DESCEND_MS = 3000;
-const LOWER_MS = 1800;
-const FLYAWAY_MS = 1600;
-const LANDED_MS = 3200;
 
 const ROCKET_PHASES: Phase[] = ['idle', 'ignite', 'launch', 'waiting'];
-const LANDER_PHASES: Phase[] = ['approach', 'descend', 'lower', 'flyaway', 'landed'];
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -37,6 +32,7 @@ export function App() {
   const [mapMounted, setMapMounted] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [instant, setInstant] = useState(false); // reduced motion: straight to the map
+  const roverControl = useRef<RoverControl | null>(null);
   const [world, setWorld] = useState<World>('mars');
   const [trip, setTrip] = useState<Trip>('none');
   const [pad, setPad] = useState<Pad | null>(null); // where the rocket stands when it leaves the Mars map
@@ -52,26 +48,11 @@ export function App() {
     const next: Partial<Record<Phase, [Phase, number]>> = {
       ignite: ['launch', IGNITE_MS],
       launch: ['waiting', LAUNCH_MS],
-      descend: ['lower', DESCEND_MS],
-      lower: ['flyaway', LOWER_MS],
-      flyaway: ['landed', FLYAWAY_MS],
-      landed: ['done', LANDED_MS],
     };
     const step = next[phase];
     if (!step) return;
     const t = setTimeout(() => setPhase(step[0]), step[1]);
     return () => clearTimeout(t);
-  }, [phase]);
-
-  // approach -> descend on the next frame, so the jump to the top of the screen isn't animated.
-  useEffect(() => {
-    if (phase !== 'approach') return;
-    let r2 = 0;
-    const r1 = requestAnimationFrame(() => (r2 = requestAnimationFrame(() => setPhase('descend'))));
-    return () => {
-      cancelAnimationFrame(r1);
-      cancelAnimationFrame(r2);
-    };
   }, [phase]);
 
   // Trip timers: ignite -> launch -> transit.
@@ -160,11 +141,12 @@ export function App() {
         <MapApp
           onTravel={startTrip}
           canTravel={phase === 'done' && trip === 'none'}
-          showRover={instant || phase === 'landed' || phase === 'done'}
+          showRover={instant || phase === 'landing' || phase === 'done'}
+          roverControl={roverControl}
           intro={
             instant
               ? undefined
-              : { fly, onReady: () => setMapReady(true), onArrive: () => setPhase((p) => (p === 'waiting' ? 'approach' : p)) }
+              : { fly, onReady: () => setMapReady(true), onArrive: () => setPhase((p) => (p === 'waiting' ? 'landing' : p)) }
           }
         />
       )}
@@ -200,11 +182,7 @@ export function App() {
           <Rocket />
         </div>
       )}
-      {LANDER_PHASES.includes(phase) && (
-        <div className="lander" data-phase={phase}>
-          <Lander />
-        </div>
-      )}
+      {phase === 'landing' && <Lander control={roverControl} onDone={() => setPhase('done')} />}
     </>
   );
 }
