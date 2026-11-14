@@ -93,6 +93,7 @@ export function MapApp({
   cameraViewRef.current = cameraView;
   const [slabs, setSlabs] = useState<StackSlab[]>([]);
   const [labelPos, setLabelPos] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [hoveredSlab, setHoveredSlab] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(initialVisibility);
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
@@ -246,6 +247,40 @@ export function MapApp({
     };
   }, [cameraView, stackIds, baseIds, stack, layers]);
 
+  // Side view: the slab under the mouse (or whose label is under it) grows a little.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (cameraView !== 'side' || !view) {
+      setHoveredSlab(null);
+      return;
+    }
+    let pending = false;
+    const move = view.on('pointer-move', (event) => {
+      if (pending) return; // one hit test at a time
+      pending = true;
+      view
+        .hitTest(event, { include: [stack.stack] })
+        .then((hit) => {
+          let id: string | null = null;
+          for (const r of hit.results) {
+            if (r.type === 'graphic' && r.graphic.attributes?.slab) {
+              id = r.graphic.attributes.slab; // the nearest slab under the mouse
+              break;
+            }
+          }
+          setHoveredSlab(id);
+        })
+        .catch(() => {})
+        .finally(() => (pending = false));
+    });
+    const leave = view.on('pointer-leave', () => setHoveredSlab(null));
+    return () => {
+      move.remove();
+      leave.remove();
+    };
+  }, [cameraView, stack]);
+  useEffect(() => stack.highlight(hoveredSlab), [hoveredSlab, stack]);
+
   // Slab labels sit to the left of the stack (the layer panel is on the right), level with each slab.
   useEffect(() => {
     const view = viewRef.current;
@@ -378,7 +413,14 @@ export function MapApp({
           {labelPos.map((p) => {
             const s = slabs.find((x) => x.id === p.id)!;
             return (
-              <div key={p.id} className="slab-label" style={{ left: p.x, top: p.y }}>
+              <div
+                key={p.id}
+                className="slab-label"
+                data-active={hoveredSlab === p.id}
+                style={{ left: p.x, top: p.y }}
+                onMouseEnter={() => setHoveredSlab(p.id)}
+                onMouseLeave={() => setHoveredSlab(null)}
+              >
                 <span>{s.title}</span>
               </div>
             );

@@ -40,6 +40,8 @@ const NO_MAP_COLOR = '#2a2f3a'; // under the base map, where it has no tiles
 const BASE_WASH = 'rgba(42, 47, 58, 0.5)';
 /** Opacity of the base map on the slabs: below 1 the slabs underneath show through. The data stays opaque. */
 const BASE_OPACITY = 0.5;
+/** A slab under the mouse grows to this size, so it can be seen better. */
+const HOVER_SCALE = 1.12;
 
 /** Layer id → what its slab draws over the base map. Layers without an entry (the base maps) stay on the ground. */
 const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData) => void; relief?: boolean }> = {
@@ -118,6 +120,35 @@ export function createLayerStack() {
   const footprint = new GraphicsLayer({ id: 'side-footprint', title: 'Side view footprint', visible: false, elevationInfo: { mode: 'on-the-ground' } });
   // The base map image and the slab textures, kept until the base maps change.
   let base: { key: string; image: Promise<HTMLCanvasElement>; textures: Map<string, HTMLCanvasElement> } | null = null;
+  // The slabs in the stack, with their current hover size.
+  let pieces = new Map<string, { graphic: Graphic; mesh: Mesh; scale: number }>();
+  let hovered: string | null = null;
+  let frame = 0;
+
+  const sized = (p: { mesh: Mesh; scale: number }) => (p.scale === 1 ? p.mesh : p.mesh.clone().scale(p.scale));
+  /** Ease every slab toward its size (the hovered one bigger) over a few frames. */
+  function animate() {
+    cancelAnimationFrame(frame);
+    const tick = () => {
+      let moving = false;
+      for (const [id, p] of pieces) {
+        const target = id === hovered ? HOVER_SCALE : 1;
+        if (p.scale === target) continue;
+        p.scale = Math.abs(target - p.scale) < 0.003 ? target : p.scale + (target - p.scale) * 0.35;
+        p.graphic.geometry = sized(p);
+        moving ||= p.scale !== target;
+      }
+      if (moving) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+  }
+
+  /** Enlarge this slab (null: none). */
+  function highlight(id: string | null) {
+    if (id === hovered) return;
+    hovered = id;
+    animate();
+  }
 
   /**
    * Rebuild the stack with these data layer ids (TOP_SLAB moves to the top) over these base map layers
@@ -132,6 +163,7 @@ export function createLayerStack() {
     const ordered = ids.filter((id) => SLABS[id] && id !== TOP_SLAB).concat(ids.includes(TOP_SLAB) ? [TOP_SLAB] : []);
 
     const graphics: Graphic[] = [];
+    const placed = new Map<string, { graphic: Graphic; mesh: Mesh; scale: number }>();
     const slabs: StackSlab[] = [];
     const bottom = d.max + LIFT * SIZE_M;
     let z = bottom;
@@ -150,7 +182,10 @@ export function createLayerStack() {
       const t = THICKNESS * SIZE_M;
       const relief = SLABS[id].relief ? reliefGrid(d) : null;
       const height = t + (relief ? (d.max - d.min) * VERTICAL_EXAGGERATION : 0);
-      graphics.push(new Graphic({ geometry: slabMesh(z, t, texture, relief), symbol: { type: 'mesh-3d', symbolLayers: [{ type: 'fill' }] } }));
+      const mesh = slabMesh(z, t, texture, relief);
+      const piece = { mesh, scale: 1, graphic: new Graphic({ geometry: mesh, attributes: { slab: id }, symbol: { type: 'mesh-3d', symbolLayers: [{ type: 'fill' }] } }) };
+      placed.set(id, piece);
+      graphics.push(piece.graphic);
       slabs.unshift({ id, title: def.title, corners: corners(z + height / 2) });
       z += height + GAP * SIZE_M;
     }
@@ -167,6 +202,8 @@ export function createLayerStack() {
     }
     stack.removeAll();
     stack.addMany(graphics);
+    pieces = placed;
+    animate(); // a slab still hovered grows again
     footprint.removeAll();
     if (ordered.length) {
       const ring = cornerLonLats();
@@ -180,7 +217,7 @@ export function createLayerStack() {
     return slabs;
   }
 
-  return { layers: [footprint, stack], stack, update };
+  return { layers: [footprint, stack], stack, update, highlight };
 }
 
 /** The base map layers over the area, composited like on the ground, from their own tiles. */
