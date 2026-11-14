@@ -281,6 +281,35 @@ export const LAYERS: LayerDef[] = [
         }),
       }),
   },
+  {
+    id: 'm20-depot',
+    title: 'Three Forks sample depot',
+    group: 'Perseverance',
+    visible: true,
+    kind: 'data',
+    resolution: '10 tubes, dropped sols 653–690',
+    description:
+      'The 10 sample tubes Perseverance left on the ground for a future return mission, at the rover position of each drop. Click a point for its name.',
+    source: {
+      name: 'NASA PDS Geosciences Node, Mars 2020 Three Forks depot',
+      url: 'https://pds-geosciences.wustl.edu/m2020/urn-nasa-pds-mars2020_sample_depot_three_forks/miscellaneous/sample_metadata/sample_tube_locations.xml',
+    },
+    legend: [{ color: 'rgb(255,61,200)', label: 'Depot tube' }],
+    create: () =>
+      marsGeoJSONLayer({
+        url: publicUrl('data/jezero/m20_depot.geojson'),
+        geometryType: 'point',
+        fields: [
+          { name: 'name', type: 'string' },
+          { name: 'sol', type: 'integer' },
+        ],
+        outFields: ['*'],
+        elevationInfo: { mode: 'on-the-ground' },
+        renderer: new SimpleRenderer({
+          symbol: { type: 'simple-marker', style: 'diamond', size: 7, color: [255, 61, 200], outline: { color: [20, 20, 20], width: 0.75 } },
+        }),
+      }),
+  },
 ];
 
 /**
