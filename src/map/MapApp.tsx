@@ -41,10 +41,24 @@ export type MapIntro = {
   onArrive: () => void; // the camera has reached Jezero
 };
 
+// Perseverance's landing site (Octavia E. Butler Landing); the rocket takes off from here when it is on screen.
+const LANDING_SITE = { lon: 77.4509, lat: 18.4447, elevation: -2568 };
+
 const globeCamera = () =>
   new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
 
-export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRover?: boolean } = {}) {
+export function MapApp({
+  intro,
+  showRover = false,
+  onTravel,
+  canTravel = false,
+}: {
+  intro?: MapIntro;
+  showRover?: boolean;
+  /** "Go to Earth" was clicked. pad = screen position of the landing site, or null if it is off screen. */
+  onTravel?: (pad: { x: number; y: number } | null) => void;
+  canTravel?: boolean;
+} = {}) {
   const introRef = useRef(intro);
   introRef.current = intro;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -184,6 +198,14 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
     else view?.goTo({ center: [77.4, 18.4], scale: 60_000_000 });
   };
 
+  const goEarth = () => {
+    const view = viewRef.current;
+    const site = new Point({ x: LANDING_SITE.lon, y: LANDING_SITE.lat, z: LANDING_SITE.elevation, spatialReference: marsSR() });
+    const p = view instanceof SceneView ? view.toScreen(site) : view?.toScreen(site);
+    const onScreen = p && view && p.x > 0 && p.y > 0 && p.x < view.width && p.y < view.height;
+    onTravel?.(onScreen ? { x: p.x, y: p.y } : null);
+  };
+
   return (
     <div className="map-app">
       <div ref={containerRef} className="map-view" />
@@ -216,6 +238,7 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
         </div>
       </div>
 
+      <div className="map-right">
       <div className="layer-panel panel" data-open={panelOpen}>
         <button className="panel-toggle" aria-expanded={panelOpen} onClick={() => setPanelOpen((o) => !o)}>
           Layers
@@ -262,6 +285,10 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
               ))}
             </section>
           ))}
+      </div>
+      <button className="btn earth-btn" onClick={goEarth} disabled={!canTravel}>
+        Go to Earth →
+      </button>
       </div>
 
       {probe && (
