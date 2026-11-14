@@ -8,7 +8,7 @@ import Point from '@arcgis/core/geometry/Point';
 import MapView from '@arcgis/core/views/MapView';
 import SceneView from '@arcgis/core/views/SceneView';
 import type Viewpoint from '@arcgis/core/Viewpoint';
-import { LAYERS, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
+import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
 import { JEZERO_DTM_EXTENT, jezeroExtent, marsSR, marsTileInfo } from './mars';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
@@ -21,6 +21,7 @@ type Probe = {
   dtm: number | null; // m, 20 m DTM
   slope: number | null; // degrees
   global: number | null; // m, MOLA 463 m
+  mineral: number | null; // MINERAL_CLASSES index + 1, 0 = none
 };
 
 const initialVisibility = () => Object.fromEntries(LAYERS.map((l) => [l.id, l.visible]));
@@ -92,15 +93,16 @@ export function MapApp() {
         const v = r.value?.[0];
         return v === undefined || v === null || v <= -32767 ? null : v;
       };
-      const [dtm, slope, global] = await Promise.all([
+      const [dtm, slope, mineral, global] = await Promise.all([
         pixel('jezero-elevation'),
         pixel('jezero-slope'),
+        pixel('jezero-minerals'),
         globalElevation
           .queryElevation(point)
           .then((r) => ((r.geometry as Point).z ?? null))
           .catch(() => null),
       ]);
-      setProbe({ lon: point.x, lat: point.y, dtm, slope, global });
+      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm ? (mineral ?? 0) : null });
     });
 
     return () => {
@@ -221,6 +223,15 @@ export function MapApp() {
                 <>
                   {probe.slope.toFixed(1)}° <span className="swatch" style={{ background: `rgb(${slopeClass(probe.slope).color.join(',')})` }} />{' '}
                   {slopeClass(probe.slope).label}
+                </>
+              )}
+            </dd>
+            <dt>Mineral (CRISM)</dt>
+            <dd>
+              {probe.mineral === null ? '–' : probe.mineral === 0 ? 'none detected or no coverage' : (
+                <>
+                  <span className="swatch" style={{ background: `rgb(${MINERAL_CLASSES[probe.mineral - 1].color.join(',')})` }} />{' '}
+                  {MINERAL_CLASSES[probe.mineral - 1].label}
                 </>
               )}
             </dd>

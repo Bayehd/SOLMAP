@@ -35,11 +35,20 @@ npm run build
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
+| Jezero minerals (off by default) | NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node), 4 observations from 2007 | 18 m/px, smoothed to ~90 m | derived |
 | Perseverance traverse and stops | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
 
 **Assumption:** the slope classes (walkable < 15°, caution 15–25°, no-go ≥ 25°) are
 placeholders, not a NASA standard. Change them in `SLOPE_CLASSES` in `src/map/layers.ts`.
 A 20 m grid also hides steps and boulders smaller than 20 m.
+
+**Assumption:** the mineral map uses fixed thresholds on CRISM summary parameters
+(Viviano-Beck et al. 2014): Mg-carbonate (MIN2295_2480 and MIN2345_2537), Fe/Mg clay
+(D2300 and BD1900R2), hydrated silica (MIN2250 and BD1900R2), olivine (OLINDEX3) and
+pyroxene (HCPINDEX2). They flag roughly the strongest 1–3 % of pixels, so the map shows where
+each mineral is likely, not a lab-grade identification. Uncolored ground means nothing was
+detected or there is no CRISM coverage (about half of the 20 m area is covered). Change the
+thresholds in `CLASSES` in `scripts/build_jezero_minerals.py` and rebuild.
 
 ### Code
 
@@ -69,7 +78,20 @@ It downloads the USGS DTM and the NASA rover GeoJSON (cached in `scripts/.cache/
   resampled. The CRS is stored as an Esri WKT, the only non-EPSG form ArcGIS reads.
 - `m20_traverse.geojson`, `m20_waypoints.geojson`: the rover path and stops, geometry only.
 
-It checks the DTM against the published elevation of the Perseverance landing site
+The mineral layer is built by a second script, after the first (it uses the DTM grid):
+
+```sh
+.venv/bin/python scripts/build_jezero_minerals.py
+```
+
+It finds the CRISM MTRDR observations over Jezero through the PDS ODE API, reads only the
+needed summary-parameter bands with HTTP range requests (cached in `scripts/.cache/crism/`),
+evens out offsets between overlapping observations, masks bad scan lines, applies a 5×5
+median filter, and writes `crism_minerals_20m.tif`: a UInt8 class raster (0 = none,
+1–5 = the classes above) on the DTM grid. Three 2011 observations with along-track striping
+are left out.
+
+`build_jezero_layers.py` checks the DTM against the published elevation of the Perseverance landing site
 (−2569.9 m; the DTM gives −2567.2 m) and stops if they differ by more than 15 m.
 
 ## Credits

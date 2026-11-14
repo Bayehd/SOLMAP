@@ -14,7 +14,7 @@ import { METERS_PER_DEGREE, publicUrl } from './mars';
 import { createModelTextureLayer } from './ModelTextureLayer';
 import { createUpsampledTileLayer } from './UpsampledTileLayer';
 
-type LayerGroup = 'Base map' | 'Jezero terrain (20 m)' | 'Perseverance';
+type LayerGroup = 'Base map' | 'Jezero terrain (20 m)' | 'Jezero minerals' | 'Perseverance';
 
 type LegendItem = { color: string; label: string };
 
@@ -47,6 +47,18 @@ export const SLOPE_CLASSES = [
   { max: 15, label: 'Walkable (< 15°)', color: [76, 175, 80], painted: false },
   { max: 25, label: 'Caution (15–25°)', color: [255, 193, 7], painted: true },
   { max: 90, label: 'No-go (≥ 25°)', color: [229, 57, 53], painted: true },
+] as const;
+
+/**
+ * Mineral classes of public/data/jezero/crism_minerals_20m.tif: pixel value = index + 1.
+ * Same order as CLASSES in scripts/build_jezero_minerals.py, which holds the detection rules.
+ */
+export const MINERAL_CLASSES = [
+  { label: 'Mg-carbonate', color: [46, 155, 255] },
+  { label: 'Fe/Mg clay (smectite)', color: [224, 64, 160] },
+  { label: 'Hydrated silica', color: [242, 233, 78] },
+  { label: 'Olivine', color: [76, 211, 76] },
+  { label: 'Pyroxene', color: [255, 140, 26] },
 ] as const;
 
 const rgb = (c: readonly number[]) => `rgb(${c.join(',')})`;
@@ -163,6 +175,30 @@ export const LAYERS: LayerDef[] = [
         }),
       });
     },
+  },
+  {
+    id: 'jezero-minerals',
+    title: 'Minerals (CRISM)',
+    group: 'Jezero minerals',
+    visible: false,
+    opacity: 0.85,
+    kind: 'derived',
+    resolution: '18 m/px, smoothed to ~90 m',
+    description:
+      'Minerals detected from orbit by CRISM, the MRO spectrometer: 4 observations (2007) covering about half of the 20 m area. ' +
+      'Uncolored: nothing detected, or no CRISM coverage. Indicative only: detection thresholds are assumptions (scripts/build_jezero_minerals.py).',
+    source: {
+      name: 'NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node)',
+      url: 'https://pds-geosciences.wustl.edu/missions/mro/crism.htm',
+    },
+    legend: MINERAL_CLASSES.map((c) => ({ color: rgb(c.color), label: c.label })),
+    create: () =>
+      new ImageryTileLayer({
+        url: publicUrl('data/jezero/crism_minerals_20m.tif'),
+        renderer: new RasterColormapRenderer({
+          colormapInfos: MINERAL_CLASSES.map((c, i) => ({ value: i + 1, color: [...c.color], label: c.label })),
+        }),
+      }),
   },
   {
     id: 'm20-traverse',
