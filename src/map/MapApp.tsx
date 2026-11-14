@@ -1,5 +1,5 @@
 // SOLMAP data map: one ArcGIS Map of Mars shown as a 3D globe (SceneView) or a 2D map (MapView).
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type Layer from '@arcgis/core/layers/Layer';
 import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
 import ArcGISMap from '@arcgis/core/Map';
@@ -12,7 +12,7 @@ import type Viewpoint from '@arcgis/core/Viewpoint';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
 import { JEZERO_DTM_EXTENT, jezeroExtent, landingExtent, marsSR, marsTileInfo } from './mars';
-import { ROVER_CREDIT, createRoverLayer, keepRoverVisible } from './rover';
+import { ROVER_CREDIT, attachRover, createRoverLayer, type RoverControl } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './map.css';
 
@@ -44,7 +44,15 @@ export type MapIntro = {
 const globeCamera = () =>
   new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
 
-export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRover?: boolean } = {}) {
+type Props = {
+  intro?: MapIntro;
+  showRover?: boolean;
+  roverControl?: RefObject<RoverControl | null>; // filled while the 3D view is up, for the landing animation
+};
+
+export function MapApp({ intro, showRover = false, roverControl }: Props = {}) {
+  const roverControlRef = useRef(roverControl);
+  roverControlRef.current = roverControl;
   const introRef = useRef(intro);
   introRef.current = intro;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,7 +99,8 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
     view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
     // The 3D model is a 3D-only symbol; the 2D map doesn't show it.
-    const roverSizing = view instanceof SceneView ? keepRoverVisible(view, roverLayer) : null;
+    const rover = view instanceof SceneView ? attachRover(view, roverLayer) : null;
+    if (roverControlRef.current) roverControlRef.current.current = rover;
 
     view.when(() => {
       if (viewpointRef.current) view.viewpoint = viewpointRef.current;
@@ -139,7 +148,8 @@ export function MapApp({ intro, showRover = false }: { intro?: MapIntro; showRov
     return () => {
       if (view.ready) viewpointRef.current = view.viewpoint?.clone() ?? null;
       click.remove();
-      roverSizing?.remove();
+      rover?.remove();
+      if (roverControlRef.current?.current === rover) roverControlRef.current.current = null;
       // Detach the shared Map first: destroying a view also destroys its map and layers.
       view.map = null;
       view.destroy();
