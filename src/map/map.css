@@ -2,6 +2,7 @@
 .map-view { position: absolute; inset: 0; background: #000; }
 .map-app .panel { position: absolute; color: var(--text); }
 .map-app .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 8px; }
+.map-app .drive-row { align-items: center; margin-top: 0; }
 .map-app .link { color: var(--accent); }
 .map-card { top: 16px; left: 16px; max-width: min(360px, calc(100vw - 32px)); }
 .map-card h1 { margin: 0 0 4px; font-size: 16px; }

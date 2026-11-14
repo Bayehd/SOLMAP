@@ -17,11 +17,11 @@ Mars data is spread across missions, formats and archives. An explorer planning 
 
 ## The app
 
-An ArcGIS Maps SDK for JavaScript map of Mars with real data layers, shown as a
-**3D globe** or a **2D map** (same layers in both). Everything is in GCS Mars 2000
-(ArcGIS wkid 104971). Click the map to read the elevation and slope at that point.
+An ArcGIS Maps SDK for JavaScript map of Mars with real data layers, shown on a 3D globe with
+three views of Jezero: **3D** (tilted), **Side** and **Top** (straight down). Everything is in GCS
+Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point.
 
-**Side** view: a 16 km square of Jezero around the rover's route is lifted off the ground and pulled
+In the **Side** view, a 16 km square of Jezero around the rover's route is lifted off the ground and pulled
 apart into one see-through slab per checked data layer (elevation at the bottom, with 2× relief,
 then slope, minerals and the Perseverance layers), each labelled. The base maps stay on the ground.
 

@@ -1,5 +1,5 @@
-// SOLMAP data map: one ArcGIS Map of Mars shown as a 3D globe (SceneView), a 2D map (MapView), or the Side view:
-// a 3D view where the data layers are lifted off the ground into a stack of separate slabs (layerStack.ts).
+// SOLMAP data map: one ArcGIS Map of Mars in a 3D SceneView, with 3D / Side / Top views of Jezero.
+// Side lifts the data layers off the ground into a stack of separate slabs (layerStack.ts).
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type Layer from '@arcgis/core/layers/Layer';
 import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
@@ -7,20 +7,15 @@ import ArcGISMap from '@arcgis/core/Map';
 import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
 import { watch, whenOnce } from '@arcgis/core/core/reactiveUtils';
-import MapView from '@arcgis/core/views/MapView';
 import SceneView from '@arcgis/core/views/SceneView';
-import type Viewpoint from '@arcgis/core/Viewpoint';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
 import { STACKABLE, createLayerStack, type StackSlab } from './layerStack';
-import { JEZERO_DTM_EXTENT, jezeroExtent, landingExtent, marsSR, marsTileInfo } from './mars';
-import { ROVER_CREDIT, attachRover, createRoverLayer, type RoverControl } from './rover';
+import { JEZERO_DTM_EXTENT, LANDING_SITE, jezeroExtent, landingExtent, marsSR } from './mars';
+import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './map.css';
 
-type Mode = '3d' | '2d' | 'side';
-const MODE_LABELS: Record<Mode, string> = { '3d': '3D globe', '2d': '2D map', side: 'Side' };
-const LABEL_GAP_PX = 24;
 type Probe = {
   lon: number;
   lat: number;
@@ -46,11 +41,31 @@ export type MapIntro = {
   onArrive: () => void; // the camera has reached Jezero
 };
 
-// Perseverance's landing site (Octavia E. Butler Landing); the rocket takes off from here when it is on screen.
-const LANDING_SITE = { lon: 77.4509, lat: 18.4447, elevation: -2568 };
-
 const globeCamera = () =>
   new Camera({ position: new Point({ x: 77.4, y: 18.4, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
+
+// Camera views of the Jezero area.
+type CameraView = '3d' | 'side' | 'top';
+const CAMERA_VIEWS: { id: CameraView; label: string }[] = [
+  { id: '3d', label: '3D' },
+  { id: 'side', label: 'Side' },
+  { id: 'top', label: 'Top' },
+];
+// Side view: the layer stack, seen corner-on from the southwest.
+const SIDE_TILT = 62;
+const SIDE_HEADING = 35;
+const LABEL_GAP_PX = 24; // between the stack and its labels
+const TOP_ZOOM = 0.65; // top view frames this fraction of the Jezero area (smaller = closer)
+
+// Following the rover: each view frames the rover from its angle, closer in.
+const VIEW_TILT: Record<CameraView, number> = { '3d': 55, side: SIDE_TILT, top: 0 };
+const FOLLOW_SCALE = 25_000;
+
+/** Camera for the 3D and Top views; the Side view frames the stack once it is built. */
+function cameraFor(v: Exclude<CameraView, 'side'>) {
+  if (v === '3d') return { target: jezeroExtent(), tilt: 55, heading: 0 };
+  return { target: jezeroExtent().expand(TOP_ZOOM), tilt: 0, heading: 0 };
+}
 
 export function MapApp({
   intro,
@@ -63,7 +78,7 @@ export function MapApp({
   showRover?: boolean;
   /** Filled while the 3D view is up, for the landing animation. */
   roverControl?: RefObject<RoverControl | null>;
-  /** "Go to Earth" was clicked. pad = screen position of the landing site, or null if it is off screen. */
+  /** "Go to Earth" was clicked. pad = screen position of the rover, or null if it is off screen. */
   onTravel?: (pad: { x: number; y: number } | null) => void;
   canTravel?: boolean;
 } = {}) {
@@ -72,14 +87,23 @@ export function MapApp({
   const introRef = useRef(intro);
   introRef.current = intro;
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<MapView | SceneView | null>(null);
-  const viewpointRef = useRef<Viewpoint | null>(null);
-  const [mode, setMode] = useState<Mode>('3d');
+  const viewRef = useRef<SceneView | null>(null);
+  const [cameraView, setCameraView] = useState<CameraView>('3d');
+  const cameraViewRef = useRef(cameraView);
+  cameraViewRef.current = cameraView;
+  const [slabs, setSlabs] = useState<StackSlab[]>([]);
+  const [labelPos, setLabelPos] = useState<{ id: string; x: number; y: number }[]>([]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(initialVisibility);
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
-  const [slabs, setSlabs] = useState<StackSlab[]>([]);
-  const [labelPos, setLabelPos] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
+  const roverRef = useRef<ReturnType<typeof attachRover> | null>(null);
+  const [follow, setFollow] = useState(false);
+  const followRef = useRef(follow);
+  followRef.current = follow;
+  const playingRef = useRef(drive.playing);
+  playingRef.current = drive.playing;
+  const aimingRef = useRef(false); // an animated goTo onto the rover is running: don't shift the camera under it
 
   // One Map and one set of layers for both views, so a toggle applies to both.
   const { map, layers, globalElevation, roverLayer, stack } = useMemo(() => {
@@ -104,39 +128,45 @@ export function MapApp({
 
   // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
-    for (const def of LAYERS) layers[def.id].visible = visibility[def.id] && !(mode === 'side' && STACKABLE.has(def.id));
-  }, [visibility, layers, mode]);
+    for (const def of LAYERS) layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id));
+  }, [visibility, layers, cameraView]);
 
-  // (Re)create the view when the mode changes, keeping the camera where it was.
   useEffect(() => {
-    const container = containerRef.current!;
-    const common = { container, map, spatialReference: marsSR(), popupEnabled: false };
-    const view =
-      mode !== '2d'
-        ? new SceneView({ ...common, qualityProfile: 'high', environment: { lighting: { type: 'virtual' } } })
-        : new MapView({ ...common, constraints: { rotationEnabled: false, lods: marsTileInfo().lods } });
+    const view = new SceneView({
+      container: containerRef.current!,
+      map,
+      spatialReference: marsSR(),
+      popupEnabled: false,
+      qualityProfile: 'high',
+      environment: { lighting: { type: 'virtual' } },
+    });
     viewRef.current = view;
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
     view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
-    // The 3D model is a 3D-only symbol; the 2D map doesn't show it.
-    const rover = mode === '3d' && view instanceof SceneView ? attachRover(view, roverLayer) : null;
+    // While following, move the camera by the same step as the rover, keeping whatever angle and zoom it has.
+    const onMove = (dLon: number, dLat: number) => {
+      if (!followRef.current || aimingRef.current || !view.ready || (!dLon && !dLat)) return;
+      const cam = view.camera.clone();
+      cam.position.x += dLon;
+      cam.position.y += dLat;
+      view.camera = cam;
+    };
+    const rover = attachRover(view, roverLayer, setDrive, onMove);
+    roverRef.current = rover;
     if (roverControlRef.current) roverControlRef.current.current = rover;
 
     view.when(() => {
-      if (mode === 'side') return; // the stack effect frames the stack
-      if (viewpointRef.current) view.viewpoint = viewpointRef.current;
-      else if (introRef.current && view instanceof SceneView) {
+      if (introRef.current) {
         view.goTo(globeCamera(), { animate: false });
         // Wait for the globe tiles (at most 6 s) so the home page fades onto a loaded planet.
         const loaded = whenOnce(() => !view.updating);
         Promise.race([loaded, new Promise((r) => setTimeout(r, 6000))]).then(() => introRef.current?.onReady());
-      } else if (view instanceof SceneView) view.goTo({ target: jezeroExtent(), tilt: 55 }, { animate: false });
-      else view.goTo(jezeroExtent(), { animate: false });
+      } else view.goTo(cameraFor('3d'), { animate: false });
     });
 
     const click = view.on('click', async (event) => {
       const p = event.mapPoint;
-      if (!p || mode === 'side') return;
+      if (!p || cameraViewRef.current === 'side') return; // a click there lands on a slab, not the ground
       const point = new Point({ x: p.longitude ?? p.x, y: p.latitude ?? p.y, spatialReference: marsSR() });
       const inDtm =
         point.x >= JEZERO_DTM_EXTENT.xmin && point.x <= JEZERO_DTM_EXTENT.xmax && point.y >= JEZERO_DTM_EXTENT.ymin && point.y <= JEZERO_DTM_EXTENT.ymax;
@@ -170,26 +200,26 @@ export function MapApp({
     });
 
     return () => {
-      if (view.ready) viewpointRef.current = view.viewpoint?.clone() ?? null;
       click.remove();
-      rover?.remove();
+      rover.remove();
+      if (roverRef.current === rover) roverRef.current = null;
       if (roverControlRef.current?.current === rover) roverControlRef.current.current = null;
       // Detach the shared Map first: destroying a view also destroys its map and layers.
       view.map = null;
       view.destroy();
       viewRef.current = null;
     };
-  }, [mode, map, layers, globalElevation, roverLayer]);
+  }, [map, layers, globalElevation, roverLayer]);
 
   useEffect(() => {
-    roverLayer.visible = showRover && mode === '3d';
-  }, [showRover, mode, roverLayer]);
+    roverLayer.visible = showRover;
+  }, [showRover, roverLayer]);
 
   // Side view: one slab per checked data layer, in catalog order from the ground up. Framed once on entry.
   const stackIds = LAYERS.filter((l) => STACKABLE.has(l.id) && visibility[l.id]).map((l) => l.id).join(',');
   const framed = useRef(false);
   useEffect(() => {
-    const side = mode === 'side';
+    const side = cameraView === 'side';
     for (const l of stack.layers) l.visible = side;
     if (!side) {
       framed.current = false;
@@ -203,20 +233,20 @@ export function MapApp({
         if (cancelled) return;
         setSlabs(placed);
         const view = viewRef.current;
-        if (framed.current || !(view instanceof SceneView) || !placed.length) return;
+        if (framed.current || !view || !placed.length || followRef.current) return;
         framed.current = true;
-        view.when(() => view.goTo({ target: stack.stack.graphics.toArray(), heading: 35, tilt: 62 }, { animate: false }));
+        view.goTo({ target: stack.stack.graphics.toArray(), heading: SIDE_HEADING, tilt: SIDE_TILT }, { duration: 1500 }).catch(() => {});
       })
       .catch((err) => console.error('Could not build the layer stack', err));
     return () => {
       cancelled = true;
     };
-  }, [mode, stackIds, stack]);
+  }, [cameraView, stackIds, stack]);
 
   // Slab labels sit to the left of the stack (the layer panel is on the right), level with each slab.
   useEffect(() => {
     const view = viewRef.current;
-    if (mode !== 'side' || !(view instanceof SceneView) || !slabs.length) {
+    if (cameraView !== 'side' || !view || !slabs.length) {
       setLabelPos([]);
       return;
     }
@@ -228,13 +258,13 @@ export function MapApp({
     };
     const handle = watch(() => [view.camera, view.ready], place, { initial: true });
     return () => handle.remove();
-  }, [mode, slabs]);
+  }, [cameraView, slabs]);
 
   // Intro flight: globe -> Jezero, slow enough to read as a descent.
   const fly = intro?.fly ?? false;
   useEffect(() => {
     const view = viewRef.current;
-    if (!fly || !(view instanceof SceneView)) return;
+    if (!fly || !view) return;
     let cancelled = false;
     view
       .when(() => view.goTo({ target: landingExtent(), tilt: 55 }, { duration: 5000, easing: 'cubic-in-out' }))
@@ -252,21 +282,48 @@ export function MapApp({
       return next;
     });
 
-  const goJezero = () => {
+  /** Frame the rover at a tilt and heading; snaps instead of animating while it drives, so it stays centred. */
+  const aimAtRover = async (tilt: number, heading: number) => {
     const view = viewRef.current;
-    if (view instanceof SceneView) view.goTo({ target: jezeroExtent(), tilt: 55 });
-    else view?.goTo(jezeroExtent());
-  };
-  const goGlobe = () => {
-    const view = viewRef.current;
-    if (view instanceof SceneView) view.goTo(globeCamera());
-    else view?.goTo({ center: [77.4, 18.4], scale: 60_000_000 });
+    const rover = roverRef.current;
+    if (!view || !rover) return;
+    const { lon, lat } = rover.position();
+    const z = await map.ground
+      .queryElevation(new Point({ x: lon, y: lat, spatialReference: marsSR() }))
+      .then((r) => (r.geometry as Point).z ?? 0)
+      .catch(() => 0);
+    const here = rover.position(); // it may have moved while the elevation was queried
+    const target = new Point({ x: here.lon, y: here.lat, z, spatialReference: marsSR() });
+    const animate = !playingRef.current;
+    aimingRef.current = animate;
+    await view.goTo({ target, tilt, heading, scale: FOLLOW_SCALE }, animate ? { duration: 1200 } : { animate: false }).catch(() => {});
+    aimingRef.current = false;
   };
 
-  const goEarth = () => {
+  const showView = (v: CameraView) => {
+    setCameraView(v);
+    if (followRef.current) void aimAtRover(VIEW_TILT[v], 0);
+    else if (v !== 'side') viewRef.current?.goTo(cameraFor(v), { duration: 1500 }).catch(() => {}); // side: framed by the stack effect
+  };
+
+  const toggleFollow = () => {
+    const on = !followRef.current;
+    followRef.current = on;
+    setFollow(on);
+    const cam = viewRef.current?.camera;
+    if (on) void aimAtRover(cam?.tilt ?? VIEW_TILT[cameraView], cam?.heading ?? 0);
+  };
+
+  // The rocket takes off from wherever the rover is (the landing site until it has driven).
+  const goEarth = async () => {
     const view = viewRef.current;
-    const site = new Point({ x: LANDING_SITE.lon, y: LANDING_SITE.lat, z: LANDING_SITE.elevation, spatialReference: marsSR() });
-    const p = view instanceof SceneView ? view.toScreen(site) : view?.toScreen(site);
+    const { lon, lat } = roverRef.current?.position() ?? { lon: LANDING_SITE.lon, lat: LANDING_SITE.lat };
+    const ground = await map.ground
+      .queryElevation(new Point({ x: lon, y: lat, spatialReference: marsSR() }))
+      .then((r) => (r.geometry as Point).z ?? 0)
+      .catch(() => 0);
+    const site = new Point({ x: lon, y: lat, z: ground, spatialReference: marsSR() });
+    const p = view?.toScreen(site);
     const onScreen = p && view && p.x > 0 && p.y > 0 && p.x < view.width && p.y < view.height;
     onTravel?.(onScreen ? { x: p.x, y: p.y } : null);
   };
@@ -287,23 +344,33 @@ export function MapApp({
           </p>
         )}
         <div className="row">
-          <div className="segmented" role="group" aria-label="View">
-            {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
-              <button key={m} className="btn" aria-pressed={mode === m} onClick={() => setMode(m)}>
-                {MODE_LABELS[m]}
+          <div className="segmented" role="group" aria-label="Camera view">
+            {CAMERA_VIEWS.map(({ id, label }) => (
+              <button key={id} className="btn" aria-pressed={cameraView === id} onClick={() => showView(id)}>
+                {label}
               </button>
             ))}
           </div>
-          <button className="btn" onClick={goJezero}>
-            Jezero
-          </button>
-          <button className="btn" onClick={goGlobe}>
-            Whole planet
-          </button>
         </div>
+        {showRover && (
+          <div className="row drive-row">
+            <button className="btn" onClick={() => roverRef.current?.toggleDrive()} disabled={!canTravel || !drive.ready}>
+              {drive.playing ? 'Pause' : drive.km > 0 && drive.km < drive.totalKm ? 'Resume drive' : 'Drive route'}
+            </button>
+            <button className="btn" onClick={() => roverRef.current?.resetDrive()} disabled={!canTravel || !drive.ready || drive.km === 0}>
+              Reset
+            </button>
+            <button className="btn" aria-pressed={follow} onClick={toggleFollow} disabled={!canTravel}>
+              Follow
+            </button>
+            <span className="muted small" aria-live="off">
+              {drive.ready ? `${drive.km.toFixed(1)} / ${drive.totalKm.toFixed(1)} km` : 'Loading route…'}
+            </span>
+          </div>
+        )}
       </div>
 
-      {mode === 'side' && (
+      {cameraView === 'side' && (
         <div className="stack-labels" aria-hidden="true">
           {labelPos.map((p) => {
             const s = slabs.find((x) => x.id === p.id)!;
