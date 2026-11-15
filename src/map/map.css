@@ -55,7 +55,23 @@
 .layers-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .layer-panel section { margin-top: 10px; width: 100%; display: flex; flex-direction: column; gap: 0; }
 .layer-panel h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); text-align: right; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
-.layer-row { padding: 0; }
+.layer-row { padding: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+/* Small round "i" right of the layer name: opens the layer's source card. */
+.layer-info-btn {
+  all: unset; box-sizing: border-box; cursor: pointer; flex: none; display: grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 50%; color: #cfcac4; background: rgba(40, 40, 44, 0.85); border: 1px solid rgba(255, 255, 255, 0.25);
+  transition: background 0.15s, color 0.15s;
+}
+.layer-info-btn:hover { color: #fff; background: rgba(70, 70, 76, 0.95); }
+.layer-info-btn[aria-expanded="true"] { color: #fff; background: #b8432b; border-color: #c9503a; }
+.layer-info-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.layer-info {
+  flex-basis: 100%; box-sizing: border-box; margin: 2px 0 6px; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.4;
+  color: var(--text); background: rgba(30, 30, 34, 0.94); border: 1px solid rgba(255, 255, 255, 0.12); text-align: left;
+}
+.layer-info p { margin: 0; }
+.layer-info .layer-info-src { margin-top: 6px; color: var(--muted); }
+.layer-info .link { overflow-wrap: anywhere; }
 .layer-row label {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px; cursor: pointer; padding: 3px 2px; font-size: 14px;
   color: #cfcac4; text-shadow: 0 1px 3px #000, 0 0 8px #000, 0 0 2px #000; text-align: right;

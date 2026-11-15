@@ -17,6 +17,7 @@ import { ELEVATION_COLORS, type Site } from './sites';
 import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
 import { createModelTextureLayer } from './ModelTextureLayer';
 import { createRegionTextureLayer } from './RegionTextureLayer';
+import { createTrekTileLayer } from './TrekTileLayer';
 
 type LegendItem = { color: string; label: string };
 
@@ -108,6 +109,46 @@ const BASE_MAPS: LayerDef[] = [
   },
 ];
 
+/** THEMIS thermal infrared mosaics: global (to ±65° latitude), from NASA Mars Trek. */
+const THEMIS_PAGE = 'https://trek.nasa.gov/mars/jpl/config/textRelease.html';
+const THERMAL: LayerDef[] = [
+  {
+    id: 'themis-day',
+    title: 'Daytime heat (THEMIS)',
+    group: 'Surface temperature',
+    visible: false,
+    kind: 'data',
+    resolution: '100 m/px',
+    description:
+      'Mars Odyssey THEMIS infrared images taken in the afternoon, mosaicked (controlled mosaic v2, 2018). Brighter = warmer: ' +
+      'sunlit slopes and dark ground heat up most. Relative warmth, not temperature values.',
+    source: { name: 'NASA Mars Odyssey THEMIS (ASU), via NASA Mars Trek', url: THEMIS_PAGE },
+    legend: [
+      { color: '#202020', label: 'Cooler' },
+      { color: '#f0f0f0', label: 'Warmer' },
+    ],
+    // Trek has tiles to level 9 (~80 m per pixel); closer tiles are cut from those.
+    create: () => createTrekTileLayer('THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018', 9),
+  },
+  {
+    id: 'themis-night',
+    title: 'Nighttime heat (THEMIS)',
+    group: 'Surface temperature',
+    visible: false,
+    kind: 'data',
+    resolution: '100 m/px',
+    description:
+      'Mars Odyssey THEMIS infrared images taken before dawn, mosaicked (controlled mosaic v2, 2018). Brighter = warmer at night: ' +
+      'rock and coarse ground keep the day\'s heat, fine dust and sand cool fast. Relative warmth, not temperature values.',
+    source: { name: 'NASA Mars Odyssey THEMIS (ASU), via NASA Mars Trek', url: THEMIS_PAGE },
+    legend: [
+      { color: '#202020', label: 'Cools fast (dust, sand)' },
+      { color: '#f0f0f0', label: 'Stays warm (rock)' },
+    ],
+    create: () => createTrekTileLayer('THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018', 9),
+  },
+];
+
 /** Curiosity RAD dose rate color stops, microGray per day (absorbed dose in silicon). */
 export const RAD_STOPS = [
   { value: 165, color: [255, 236, 160] },
@@ -123,6 +164,7 @@ export function layersFor(site: Site): LayerDef[] {
   const rover = site.rover;
   const list: (LayerDef | false)[] = [
     ...BASE_MAPS,
+    ...THERMAL,
     !!site.texture && {
       id: 'crater-texture',
       title: site.texture.title,
@@ -228,7 +270,7 @@ export function layersFor(site: Site): LayerDef[] {
       kind: 'data',
       resolution: site.roverSource.until,
       description: `The path ${rover} drove from landing.`,
-      source: { name: `NASA/JPL-Caltech ${rover} (MMGIS)`, url: site.roverSource.traverse },
+      source: { name: `NASA/JPL-Caltech ${rover} (MMGIS)`, url: site.roverSource.page },
       legend: [{ color: '#ffffff', label: 'Drive path' }],
       create: () =>
         marsGeoJSONLayer({
@@ -282,7 +324,7 @@ export function layersFor(site: Site): LayerDef[] {
         'The 10 sample tubes Perseverance left on the ground for a future return mission, at the rover position of each drop. Click a point for its name.',
       source: {
         name: 'NASA PDS Geosciences Node, Mars 2020 Three Forks depot',
-        url: 'https://pds-geosciences.wustl.edu/m2020/urn-nasa-pds-mars2020_sample_depot_three_forks/miscellaneous/sample_metadata/sample_tube_locations.xml',
+        url: 'https://pds-geosciences.wustl.edu/missions/mars2020/three_forks_depot.htm',
       },
       legend: [{ color: 'rgb(255,61,200)', label: 'Depot tube' }],
       create: () =>
@@ -309,7 +351,7 @@ export function layersFor(site: Site): LayerDef[] {
       resolution: '1,317 rover stops, sols 3–4843 (2012–2026)',
       description:
         `Radiation dose ${rover} measured at the surface at each place it stopped: the daily absorbed dose in silicon, averaged over the sols spent there. It rises and falls with the 11-year solar cycle (the Sun's activity shields Mars from galactic cosmic rays). Click a point for its values.`,
-      source: { name: 'NASA PDS PPI Node, MSL RAD RDR + MSL MMGIS rover positions', url: 'https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/' },
+      source: { name: 'NASA PDS PPI Node, MSL RAD RDR + MSL MMGIS rover positions', url: 'https://pds.nasa.gov/ds-view/pds/viewDataset.jsp?dsid=MSL-M-RAD-3-RDR-V1.0' },
       legend: RAD_STOPS.map((s) => ({ color: `rgb(${s.color.join(',')})`, label: `${s.value} µGy/day` })),
       create: () =>
         marsGeoJSONLayer({

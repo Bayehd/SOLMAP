@@ -132,6 +132,7 @@ export function MapApp({
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => initialVisibility(defs));
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [infoId, setInfoId] = useState<string | null>(null); // the layer whose source card is open
   const [routeOpen, setRouteOpen] = useState(false); // the safest-route panel, from the Route button // the layer list opens from the layers icon
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
   const [riding, setRiding] = useState(false); // in the Rover view, on the rover (after the camera has flown down)
@@ -667,6 +668,29 @@ export function MapApp({
                     />
                     <span>{def.title}</span>
                   </label>
+                  <button
+                    className="layer-info-btn"
+                    aria-expanded={infoId === def.id}
+                    aria-label={`Where the ${def.title} data comes from`}
+                    title="Data source"
+                    onClick={() => setInfoId((id) => (id === def.id ? null : def.id))}
+                  >
+                    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="currentColor">
+                      <circle cx="8" cy="4.2" r="1.3" />
+                      <rect x="6.9" y="6.6" width="2.2" height="6.6" rx="1" />
+                    </svg>
+                  </button>
+                  {infoId === def.id && (
+                    <div className="layer-info">
+                      <p>{def.description}</p>
+                      <p className="layer-info-src">
+                        Source:{' '}
+                        <a className="link" href={def.source.url} target="_blank" rel="noreferrer">
+                          {def.source.name} ↗
+                        </a>
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </section>
