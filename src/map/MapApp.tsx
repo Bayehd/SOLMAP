@@ -131,7 +131,8 @@ export function MapApp({
   const groups = useMemo(() => [...new Set(defs.map((l) => l.group))], [defs]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => initialVisibility(defs));
   const [probe, setProbe] = useState<Probe | null>(null);
-  const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [routeOpen, setRouteOpen] = useState(false); // the safest-route panel, from the Route button // the layer list opens from the layers icon
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
   const [riding, setRiding] = useState(false); // in the Rover view, on the rover (after the camera has flown down)
   // A sample board is up: the camera has turned off the rover to it, so the rover is drawn in 3D, not as the picture.
@@ -198,7 +199,8 @@ export function MapApp({
     });
     viewRef.current = view;
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
-    view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
+    // Bottom right, one column like Google Maps: the compass, zoom, then pan/rotate.
+    view.ui.move(['compass', 'zoom', 'navigation-toggle'], 'bottom-right');
     const sizeWatch = watch(
       () => [view.width, view.height],
       ([width, height]) => setViewSize({ width, height }),
@@ -510,20 +512,16 @@ export function MapApp({
 
       <div className="map-left">
       <div className="map-toolbar">
-        <div className="segmented" role="group" aria-label="Camera view">
-          {CAMERA_VIEWS.map(({ id, label }) => (
-            <button
-              key={id}
-              className="btn"
-              aria-pressed={cameraView === id}
-              onClick={() => showView(id)}
-              disabled={id === 'rover' && !(showRover && canTravel && drive.ready)}
-              title={id === 'rover' ? 'Ride on the rover along its route' : undefined}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {cameraView !== 'rover' && (
+          <button className="btn" onClick={goEarth} disabled={!canTravel} aria-label="Go to Earth" title="Go to Earth">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              {/* a globe: outline, meridian and parallels */}
+              <circle cx="12" cy="12" r="9" />
+              <ellipse cx="12" cy="12" rx="4" ry="9" />
+              <path d="M3 12h18M4.5 7.5h15M4.5 16.5h15" />
+            </svg>
+          </button>
+        )}
         {showRover && (
           <button
             className="btn play-btn"
@@ -535,13 +533,31 @@ export function MapApp({
             {drive.playing ? '❚❚' : '▶'}
           </button>
         )}
+        {cameraView !== 'rover' && (
+          <button
+            className="btn"
+            aria-pressed={routeOpen}
+            aria-controls="route-panel"
+            onClick={() => setRouteOpen((o) => !o)}
+            title="Plan the safest route"
+            aria-label="Safest route"
+          >
+            {/* a winding route between a start dot and an end pin */}
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="5" cy="19" r="2" />
+              <path d="M7 19h8.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H13" />
+              <path d="M18 9.5s-3-2.9-3-5a3 3 0 0 1 6 0c0 2.1-3 5-3 5Z" />
+              <circle cx="18" cy="4.5" r="0.6" fill="currentColor" />
+            </svg>
+          </button>
+        )}
         {cameraView === 'rover' && (
           <span className="drive-km" aria-live="off">
             {drive.km.toFixed(2)} / {drive.totalKm.toFixed(1)} km
           </span>
         )}
       </div>
-      {cameraView !== 'rover' && <RoutePanel planner={planner} site={site} />}
+      {cameraView !== 'rover' && <RoutePanel planner={planner} site={site} open={routeOpen} />}
       </div>
 
       {riding && !boardUp && viewSize.width > 0 && (
@@ -560,6 +576,24 @@ export function MapApp({
           })()}
         />
       )}
+
+      {/* Camera views, bottom left (▶ and the route stay at the top left). */}
+      <div className="map-toolbar map-views">
+          <div className="view-buttons" role="group" aria-label="Camera view">
+          {CAMERA_VIEWS.map(({ id, label }) => (
+            <button
+              key={id}
+              className="btn"
+              aria-pressed={cameraView === id}
+              onClick={() => showView(id)}
+              disabled={id === 'rover' && !(showRover && canTravel && drive.ready)}
+              title={id === 'rover' ? 'Ride on the rover along its route' : undefined}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {(showRover || textureShown) && (
         <p className="rover-credit">
@@ -603,16 +637,26 @@ export function MapApp({
 
       <div className="map-right" hidden={cameraView === 'rover'}>
       <div className="layer-panel panel" data-open={panelOpen}>
-        <button className="panel-toggle" aria-expanded={panelOpen} onClick={() => setPanelOpen((o) => !o)}>
-          Layers
+        <button
+          className="layers-icon"
+          aria-expanded={panelOpen}
+          aria-label={panelOpen ? 'Hide layers' : 'Show layers'}
+          title="Layers"
+          onClick={() => setPanelOpen((o) => !o)}
+        >
+          {/* three stacked sheets */}
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+            <path d="M12 3 2.5 8 12 13l9.5-5L12 3Z" />
+            <path d="m2.5 12 9.5 5 9.5-5" />
+            <path d="m2.5 16 9.5 5 9.5-5" />
+          </svg>
         </button>
         {panelOpen &&
           groups.map((group) => (
-            <section key={group}>
-              <h2>{group}</h2>
+            <section key={group} aria-label={group}>
               {defs.filter((l) => l.group === group).map((def) => (
                 <div key={def.id} className="layer-row">
-                  <label>
+                  <label data-on={visibility[def.id]}>
                     <input
                       type={def.basemap ? 'radio' : 'checkbox'}
                       name={def.basemap ? 'basemap' : undefined}
@@ -627,9 +671,6 @@ export function MapApp({
             </section>
           ))}
       </div>
-      <button className="btn earth-btn" onClick={goEarth} disabled={!canTravel}>
-        Go to Earth →
-      </button>
       </div>
 
       {probe && (

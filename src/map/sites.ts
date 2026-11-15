@@ -74,7 +74,7 @@ export const SITES: Record<SiteId, Site> = {
     texture: {
       file: 'models/jezero-crater-texture.jpg',
       box: { xmin: 77.0095, ymin: 17.56576, xmax: 78.5345, ymax: 19.30224 },
-      title: 'Crater model texture',
+      title: 'Realistic crater',
       credit: {
         text: '“Jezero Crater (Mars)” by Gaia, CC BY 4.0',
         url: 'https://sketchfab.com/3d-models/jezero-crater-mars-f8501fbe652241b585f7734bee259ad3',

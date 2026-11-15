@@ -8,6 +8,7 @@ import { Rocket } from './home/Rocket';
 import { Lander } from './home/Lander';
 import type { RoverControl } from './map/rover';
 import { SITES, formatLatLon, type SiteId } from './map/sites';
+import { publicUrl } from './map/mars';
 import './home/home.css';
 
 // Rocket: idle (on the pad) · ignite · launch (boosters separate on the way up) · waiting (off-screen while the camera flies)
@@ -164,18 +165,19 @@ export function App() {
           <div className="home-stars" style={{ boxShadow: stars.small }} />
           <div className="home-stars home-stars-big" style={{ boxShadow: stars.big }} />
           <main className="home-content">
-            <p className="home-kicker">SOLMAP · Mars</p>
             <h1 className="home-title">Choose your landing area</h1>
             <div className="home-sites">
               {Object.values(SITES).map((s) => (
-                <button key={s.id} className="home-site" onClick={() => launch(s.id)} disabled={phase !== 'idle'}>
+                <button
+                  key={s.id}
+                  className="home-site"
+                  onClick={() => launch(s.id)}
+                  disabled={phase !== 'idle'}
+                  data-launching={phase !== 'idle' && siteId === s.id}
+                  title={`${s.rover} · ${formatLatLon(s.landing.lat, s.landing.lon)}`}
+                >
+                  <img className="home-site-img" src={publicUrl(`home/${s.id}.webp`)} alt="" />
                   <span className="home-site-name">{s.name}</span>
-                  <span className="home-site-meta">
-                    {s.rover} · {formatLatLon(s.landing.lat, s.landing.lon)}
-                  </span>
-                  <span className="home-site-go" aria-hidden="true">
-                    {phase === 'idle' ? 'Launch →' : siteId === s.id ? 'Launching…' : '\u00a0'}
-                  </span>
                 </button>
               ))}
             </div>
