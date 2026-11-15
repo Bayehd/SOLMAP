@@ -34,12 +34,12 @@ const LIFT = 0.08; // bottom of the stack above the highest ground
 const TEX_PX = 1536; // slab texture size (~20 m/px)
 const RASTER_PX = 768; // data raster samples per side (~40 m)
 const RELIEF_STEP = 6; // relief mesh = every 6th raster sample (128 × 128)
-const SIDE_COLOR = [70, 76, 92];
+const SIDE_COLOR = [150, 156, 170, 0.35]; // slab edges, light and see-through
 const NO_MAP_COLOR = '#2a2f3a'; // under the base map, where it has no tiles
 /** Laid over the base map on the slabs to soften its contrast, so the data drawn on top stands out. */
-const BASE_WASH = 'rgba(42, 47, 58, 0.5)';
+const BASE_WASH = 'rgba(42, 47, 58, 0.15)';
 /** Opacity of the base map on the slabs: below 1 the slabs underneath show through. The data stays opaque. */
-const BASE_OPACITY = 0.5;
+const BASE_OPACITY = 0.25;
 /** A slab under the mouse grows to this size, so it can be seen better. */
 const HOVER_SCALE = 1.12;
 
@@ -415,7 +415,7 @@ function slabMesh(z: number, thickness: number, texture: HTMLCanvasElement, reli
     vertexAttributes: { position: new Float64Array(position), uv: new Float32Array(uv) },
     components: [
       new MeshComponent({ faces: new Uint32Array(top), material: new MeshMaterial({ colorTexture: new MeshTexture({ data: texture, transparent: true }), alphaMode: 'blend', doubleSided: true }) }),
-      new MeshComponent({ faces: new Uint32Array(sides), material: new MeshMaterial({ color: SIDE_COLOR, doubleSided: true }) }),
+      new MeshComponent({ faces: new Uint32Array(sides), material: new MeshMaterial({ color: SIDE_COLOR, alphaMode: 'blend', doubleSided: true }) }),
     ],
   });
 }
