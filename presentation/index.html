@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Red Horizon</title>
+<link rel="stylesheet" href="lib/reveal.css">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500&family=Rajdhani:wght@700&family=Overpass:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="reveal"><div class="slides">
+
+<!-- COVER -->
+<section data-background-color="#f6c98a">
+  <div class="abs cover-sky"></div>
+  <svg class="abs cover-hills" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+    <path class="h1" d="M0 780 L120 730 L300 760 L520 745 L700 800 L900 790 L1100 770 L1300 785 L1500 760 L1700 775 L1920 755 L1920 1080 L0 1080Z"/>
+    <path class="h2" d="M0 770 L110 720 L260 760 L420 750 L600 800 L780 860 L980 830 L1200 860 L1450 840 L1700 870 L1920 850 L1920 1080 L0 1080Z"/>
+    <path class="h3" d="M0 900 L180 840 L330 870 L520 950 L760 880 L900 910 L1100 960 L1350 940 L1600 990 L1920 960 L1920 1080 L0 1080Z"/>
+  </svg>
+  <div class="abs cover-title" style="left:0;top:420px;width:1920px">
+    <div class="pre">Project:</div>
+    <div class="main">RED HORIZON</div>
+  </div>
+</section>
+
+<!-- STORY SLIDES (deck pages 18-23): images are full-window backgrounds -->
+<section data-background-image="assets/launch_pad.jpg" data-background-size="cover" data-transition="convex" data-background-transition="fade" data-smoke-fill>
+  <div class="abs launcher idle rocket2" style="left:880px;top:60px;width:200px;height:400px">
+    <div class="flame"></div>
+    <img src="assets/rocket_clean.png" alt="" style="width:200px;display:block;position:relative">
+  </div>
+</section>
+
+<section data-background-image="assets/control.jpg" data-background-size="cover" data-transition="fade" data-background-transition="fade"></section>
+
+<section data-background-image="assets/plain.jpg" data-background-size="cover" data-transition="fade" data-background-transition="fade" data-bg-key="mars"></section>
+
+<section data-background-image="assets/plain.jpg" data-background-size="cover" data-transition="none" data-background-transition="none" data-bg-key="mars">
+  <div class="abs slab-pit" style="left:416px;top:348px;width:1224px;height:644px">
+    <img class="slab" src="assets/slab.png" alt="">
+  </div>
+</section>
+
+<section data-background-image="assets/tracks.jpg" data-background-size="cover" data-transition="fade" data-background-transition="fade"></section>
+
+<section data-zoom-from-prev data-background-image="assets/sample.jpg" data-background-size="cover" data-transition="fade" data-background-transition="fade"></section>
+
+</div></div>
+<canvas id="smoke"></canvas>
+<script src="lib/reveal.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
