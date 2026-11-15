@@ -8,7 +8,7 @@ import Point from '@arcgis/core/geometry/Point';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import PointSymbol3D from '@arcgis/core/symbols/PointSymbol3D';
 import ObjectSymbol3DLayer from '@arcgis/core/symbols/ObjectSymbol3DLayer';
-import { watch } from '@arcgis/core/core/reactiveUtils';
+import { whenOnce } from '@arcgis/core/core/reactiveUtils';
 import type SceneView from '@arcgis/core/views/SceneView';
 import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
 import type { Site } from './sites';
@@ -20,7 +20,7 @@ export const ROVER_CREDIT = {
 
 const REAL_HEIGHT_M = 2.2; // Perseverance and Curiosity are both about 2.2 m tall
 export const ROVER_WIDTH_PER_HEIGHT = 2.7 / 2.2; // model footprint width / height
-const SCREEN_HEIGHT_PX = 40; // how tall it is drawn while the camera is too far away to see it at real size
+const SCREEN_HEIGHT_PX = 40; // how tall it is drawn in the site's default 3D view; its size in meters stays fixed from then on
 const PARKED_HEADING = 120; // degrees, so the parked model is seen from its side in the default view
 const MODEL_HEADING_OFFSET = 180; // added to the direction of travel so the model drives arm (front) first
 const DRIVE_SECONDS = 90; // time to drive the whole route
@@ -28,7 +28,7 @@ const HEADING_WINDOW_M = 40; // direction of travel is measured over ±this, so 
 
 /** What the landing animation needs from the 3D view. Altitudes are meters above the ground at the site. */
 export type RoverControl = {
-  heightM(): number; // current display height of the model (exaggerated when far away)
+  heightM(): number; // display height of the model (m, enlarged so it shows at site scale)
   setAltitude(m: number): void;
   toScreen(altitudeM: number): { x: number; y: number } | null; // the point above the site at that altitude
   metersPerPx(): number | null; // screen scale at the site
@@ -129,8 +129,8 @@ function headingAt(r: Route, s: number) {
 const angleDiff = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
 
 /**
- * Connect the rover layer to a 3D view: keep it about SCREEN_HEIGHT_PX tall while the camera is far away,
- * shrinking to its real size as you zoom in, and drive it along the traverse on request.
+ * Connect the rover layer to a 3D view: give it a fixed (enlarged) size in meters so it scales with the
+ * terrain as you zoom, and drive it along the traverse on request.
  */
 export function attachRover(
   view: SceneView,
@@ -162,19 +162,15 @@ export function attachRover(
     })
     .catch(() => {});
 
-  const sizing = watch(
-    () => view.camera,
-    (camera) => {
-      if (!camera) return;
-      const mpp = measureMetersPerPx(view, lon, lat, groundZ);
-      if (!mpp) return;
-      const h = Math.max(REAL_HEIGHT_M, SCREEN_HEIGHT_PX * mpp);
-      if (Math.abs(h / height - 1) < 0.15) return;
-      height = h;
-      resymbol();
-    },
-    { initial: true },
-  );
+  // One fixed size in meters, so zooming in makes the rover bigger along with the ground around it.
+  // At real size (2.2 m) it would be invisible at site scale, so it is enlarged to SCREEN_HEIGHT_PX in the
+  // default 3D view, which shows the whole site extent across the view.
+  const siteWidthM = (site.extent.xmax - site.extent.xmin) * METERS_PER_DEGREE * Math.cos((siteLat * Math.PI) / 180);
+  whenOnce(() => view.width > 0).then(() => {
+    if (removed) return;
+    height = Math.max(REAL_HEIGHT_M, (SCREEN_HEIGHT_PX * siteWidthM) / view.width);
+    resymbol();
+  });
 
   // ---------- Driving ----------
   let route: Route | null = null;
@@ -248,7 +244,6 @@ export function attachRover(
       removed = true;
       playing = false;
       cancelAnimationFrame(raf);
-      sizing.remove();
     },
   };
 }
