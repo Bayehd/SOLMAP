@@ -85,6 +85,8 @@ const ROVER_FRONT = { file: 'models/rover-front.webp', refW: 1000, refH: 1613, l
 const ROVER_VIEW_SPEED = 30; // m/s while in this view (the whole route takes ~25 min instead of 90 s)
 const ROVER_CLIP_NEAR_M = 0.5; // draw the ground from this close to the camera
 const ROVER_CLIP_FAR_M = 400_000; // to the horizon and the crater rims
+const ROUTE_CLICK_PX = 10; // a click this close to the route line (on screen) moves the rover there
+const ROUTE_CLICK_MIN_M = 15;
 const BOARD_FOV = 60; // degrees: a normal lens while a sample board is up, so it isn't stretched (driving restores ROVER_FOV)
 
 
@@ -137,7 +139,8 @@ export function MapApp({
   const [routeOpen, setRouteOpen] = useState(false); // the safest-route panel, from the Route button // the layer list opens from the layers icon
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
   const [riding, setRiding] = useState(false); // in the Rover view, on the rover (after the camera has flown down)
-  // A sample board is up: the camera has turned off the rover to it, so the rover is drawn in 3D, not as the picture.
+  // Rover view, camera off the rover: a board is up, or the view was moved by hand. The camera stays where it is (no
+  // snapping back) and the rover is drawn in 3D, not as the picture, until ▶ puts the camera back on the rover.
   const [boardUp, setBoardUp] = useState(false);
   const boardUpRef = useRef(boardUp);
   boardUpRef.current = boardUp;
@@ -145,6 +148,8 @@ export function MapApp({
   const roverRef = useRef<ReturnType<typeof attachRover> | null>(null);
   const driveRef = useRef(drive);
   driveRef.current = drive;
+  const showRoverRef = useRef(showRover);
+  showRoverRef.current = showRover;
 
   // One Map and one set of layers for both views, so a toggle applies to both.
   const { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, tubes, minerals, stack } = useMemo(() => {
@@ -281,6 +286,26 @@ export function MapApp({
           };
         })
         .catch(() => ({ sample: null, depot: null, rad: null, spot: null }));
+      // In the map views, a click on the rover's route (not on a point on it) moves the rover there; ▶ drives on from there.
+      const rover = roverRef.current;
+      const onRoute = rover && showRoverRef.current && cameraViewRef.current !== 'rover' ? rover.nearestOnRoute(point.x, point.y) : null;
+      if (onRoute && rover && layers['traverse']?.visible) {
+        // ROUTE_CLICK_PX on screen around the click, in meters.
+        const side = view.toMap({ x: event.x + ROUTE_CLICK_PX, y: event.y });
+        const m = side
+          ? Math.hypot(((side.longitude ?? side.x) - point.x) * METERS_PER_DEGREE * Math.cos((point.y * Math.PI) / 180), ((side.latitude ?? side.y) - point.y) * METERS_PER_DEGREE)
+          : 0;
+        if (onRoute.offM <= Math.max(ROUTE_CLICK_MIN_M, m)) {
+          const h = await pointHits;
+          if (!(h.sample || h.depot || h.rad || h.spot)) {
+            rover.jumpTo(onRoute.distM);
+            tubes.clearBoard();
+            setBoardUp(false);
+            setProbe(null);
+            return;
+          }
+        }
+      }
       const [dtm, slope, mineral, global, hits] = await Promise.all([
         pixel('elevation'),
         pixel('slope'),
@@ -364,8 +389,17 @@ export function MapApp({
     guide(rover.pose().distM);
     rover.onMove((p) => {
       guide(p.distM);
-      if (!entering) view.camera = cameraAt(p);
+      if (!entering && !boardUpRef.current) view.camera = cameraAt(p);
     });
+    // Moving the view by hand (drag, wheel, keys) leaves the camera where it is put.
+    const handMoved = watch(
+      () => view.interacting,
+      (on) => {
+        if (!on || boardUpRef.current) return;
+        boardUpRef.current = true;
+        setBoardUp(true);
+      },
+    );
     // Finer terrain keeps arriving after the camera lands (and while parked nothing else moves it): put the camera
     // back on the rover each time the view has finished loading, so it sits on the ground the rover is drawn on.
     const settle = watch(
@@ -384,6 +418,7 @@ export function MapApp({
     return () => {
       rover.onMove(null);
       settle.remove();
+      handMoved.remove();
       rover.setSpeed(null);
       rover.setRiding(false);
       setRiding(false);

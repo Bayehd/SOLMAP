@@ -161,6 +161,10 @@ export function attachRover(
   setRiding(on: boolean): void;
   /** Points along the route from fromM to toM (meters driven), every stepM. */
   routeBetween(fromM: number, toM: number, stepM: number): { lon: number; lat: number }[];
+  /** The route point nearest (lon, lat): its distance along the route and how far (m) it is from the given point. */
+  nearestOnRoute(lon: number, lat: number): { distM: number; offM: number } | null;
+  /** Put the rover at distM along the route (driving, if it is, goes on from there). */
+  jumpTo(distM: number): void;
   remove(): void;
 } {
   const graphic = layer.graphics.getItemAt(0)!;
@@ -309,6 +313,30 @@ export function attachRover(
       for (let d = a; d < b; d += stepM) pts.push(sample(route, d));
       if (b > a) pts.push(sample(route, b));
       return pts;
+    },
+    nearestOnRoute(x, y) {
+      if (!route) return null;
+      const r = route;
+      const mx = metersX(y);
+      let best = { distM: 0, offM: Infinity };
+      for (let i = 0; i + 1 < r.lon.length; i++) {
+        // Project the point onto segment i (local meters around the point).
+        const ax = (r.lon[i] - x) * mx;
+        const ay = (r.lat[i] - y) * METERS_PER_DEGREE;
+        const bx = (r.lon[i + 1] - x) * mx;
+        const by = (r.lat[i + 1] - y) * METERS_PER_DEGREE;
+        const dx = bx - ax;
+        const dy = by - ay;
+        const len2 = dx * dx + dy * dy;
+        const t = len2 > 0 ? Math.min(1, Math.max(0, -(ax * dx + ay * dy) / len2)) : 0;
+        const off = Math.hypot(ax + dx * t, ay + dy * t);
+        if (off < best.offM) best = { distM: r.dist[i] + (r.dist[i + 1] - r.dist[i]) * t, offM: off };
+      }
+      return best;
+    },
+    jumpTo(distM) {
+      moveTo(distM);
+      report(true);
     },
     toggleDrive() {
       if (!route) return;
