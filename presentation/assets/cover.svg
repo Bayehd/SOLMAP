@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMax slice">
+<defs><linearGradient id="s" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1080"><stop offset="0" stop-color="#c48f86"/><stop offset=".35" stop-color="#f2a979"/><stop offset=".65" stop-color="#fcd48a"/><stop offset="1" stop-color="#fdd98c"/></linearGradient></defs>
+<rect x="-2000" y="-3000" width="6000" height="5000" fill="url(#s)"/>
+<rect x="-2000" y="-3000" width="6000" height="3000" fill="#c48f86"/>
+<path fill="#e08a5e" d="M-2000 780 L0 780 L120 730 L300 760 L520 745 L700 800 L900 790 L1100 770 L1300 785 L1500 760 L1700 775 L1920 755 L4000 755 L4000 1080 L-2000 1080Z"/>
+<path fill="#d4693f" d="M-2000 770 L0 770 L110 720 L260 760 L420 750 L600 800 L780 860 L980 830 L1200 860 L1450 840 L1700 870 L1920 850 L4000 850 L4000 1080 L-2000 1080Z"/>
+<path fill="#c0532e" d="M-2000 900 L0 900 L180 840 L330 870 L520 950 L760 880 L900 910 L1100 960 L1350 940 L1600 990 L1920 960 L4000 960 L4000 1080 L-2000 1080Z"/>
+</svg>
