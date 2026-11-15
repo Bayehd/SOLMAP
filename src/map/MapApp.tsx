@@ -3,7 +3,6 @@
 // Side lifts the data layers off the ground into a stack of separate slabs (layerStack.ts).
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type Layer from '@arcgis/core/layers/Layer';
-import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
 import ArcGISMap from '@arcgis/core/Map';
 import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
@@ -15,32 +14,19 @@ import { RoutePanel } from '../route/RoutePanel';
 import { LayerLegend, hasLegend } from './MapLegend';
 import { useRoutePlanner } from '../route/useRoutePlanner';
 import type { RouteResult } from '../route/planner';
-import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, listRank, type LayerDef } from './layers';
+import { globalElevationLayer, layersFor, listRank, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSampleTubes } from './sampleTubes';
 import { MINERAL_BOARD_W_M, createMineralPins } from './mineralSpots';
 import { createSiteElevationLayer } from './SiteElevationLayer';
 import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
 import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
-import { formatLatLon, insideSite, landingExtent, siteExtent, type Site } from './sites';
+import { landingExtent, siteExtent, type Site } from './sites';
 import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl, type RoverPose } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './map.css';
 
-type Probe = {
-  lon: number;
-  lat: number;
-  dtm: number | null; // m, 20 m DTM
-  slope: number | null; // degrees
-  global: number | null; // m, MOLA 463 m
-  mineral: number | null; // MINERAL_CLASSES index + 1, 0 = none
-};
-
 const initialVisibility = (defs: LayerDef[]) => Object.fromEntries(defs.map((l) => [l.id, l.visible]));
-
-function slopeClass(deg: number) {
-  return SLOPE_CLASSES.find((c) => deg < c.max) ?? SLOPE_CLASSES[SLOPE_CLASSES.length - 1];
-}
 
 /** Opening sequence from the home page: start on the whole planet, then fly down to the site. */
 export type MapIntro = {
@@ -147,7 +133,6 @@ export function MapApp({
   );
   const groups = useMemo(() => [...new Set(listed.map((l) => l.group))], [listed]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => initialVisibility(defs));
-  const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [infoId, setInfoId] = useState<string | null>(null); // the layer whose source card is open
   const [routeOpen, setRouteOpen] = useState(false);
@@ -258,7 +243,7 @@ export function MapApp({
       const p = event.mapPoint;
       if (!p || cameraViewRef.current === 'side') return; // a click there lands on a slab, not the ground
       const point = new Point({ x: p.longitude ?? p.x, y: p.latitude ?? p.y, spatialReference: marsSR() });
-      if (plannerRef.current.pick(point.x, point.y)) return; // picking a route point: don't open the probe
+      if (plannerRef.current.pick(point.x, point.y)) return; // picking a route point
       // Rover view: a click on a sample tube stops the drive, stands its board beside the rover and turns the
       // camera so the board and the tube both show.
       if (cameraViewRef.current === 'rover') {
@@ -290,7 +275,6 @@ export function MapApp({
         if (spot && g?.type === 'graphic') {
           // A mineral pin: like a sample tube, the drive stops and the mineral's (wider) board stands beside the rover.
           if (driveRef.current.playing) roverRef.current?.toggleDrive();
-          setProbe(null);
           setBoardUp(true);
           boardUpRef.current = true;
           const { position, heading, tilt } = tubes.standBoard(view, g.graphic.geometry as Point, ROVER_CAM_UP_M, MINERAL_BOARD_W_M, () =>
@@ -302,7 +286,6 @@ export function MapApp({
         const samples = g && g.type === 'graphic' ? tubes.samplesOf(g.graphic) : null;
         if (samples) {
           if (driveRef.current.playing) roverRef.current?.toggleDrive();
-          setProbe(null);
           setBoardUp(true);
           boardUpRef.current = true; // before the camera turns, so nothing puts it back on the rover
           const { position, heading, tilt } = await tubes.showBoard(view, samples, ROVER_CAM_UP_M);
@@ -310,13 +293,6 @@ export function MapApp({
           return;
         }
       }
-      const inDtm = insideSite(site, { lon: point.x, lat: point.y });
-      const pixel = async (id: string) => {
-        if (!inDtm || !layers[id]) return null;
-        const r = await (layers[id] as ImageryTileLayer).identify(point);
-        const v = r.value?.[0];
-        return v === undefined || v === null || v <= -32767 ? null : v;
-      };
       const pointHits = view
         .hitTest(event, { include: [layers['samples'], layers['depot'], layers['radiation'], layers['mineral-spots']].filter(Boolean) })
         .then((h) => h.results.some((r) => r.type === 'graphic')) // clicked a point
@@ -335,26 +311,10 @@ export function MapApp({
             rover.jumpTo(onRoute.distM);
             tubes.clearBoard();
             setBoardUp(false);
-            setProbe(null);
             return;
           }
         }
       }
-      // A click on a point (sample, depot tube, RAD stop, mineral spot) shows no info box.
-      if (await pointHits) {
-        setProbe(null);
-        return;
-      }
-      const [dtm, slope, mineral, global] = await Promise.all([
-        pixel('elevation'),
-        pixel('slope'),
-        pixel('minerals'),
-        globalElevation
-          .queryElevation(point)
-          .then((r) => ((r.geometry as Point).z ?? null))
-          .catch(() => null),
-      ]);
-      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm && layers['minerals'] ? (mineral ?? 0) : null });
     });
 
     return () => {
@@ -874,41 +834,6 @@ export function MapApp({
       </div>
       </div>
 
-      {probe && (
-        <div className="probe panel">
-          <button className="close" aria-label="Close" onClick={() => setProbe(null)}>
-            ×
-          </button>
-          <dl>
-            <dt>Position</dt>
-            <dd>
-              {formatLatLon(probe.lat, probe.lon, 5)}
-            </dd>
-            <dt>Elevation (20 m DTM)</dt>
-            <dd>{probe.dtm === null ? `outside the ${site.short} DTM` : `${probe.dtm.toFixed(1)} m`}</dd>
-            <dt>Slope (20 m DTM)</dt>
-            <dd>
-              {probe.slope === null ? '–' : (
-                <>
-                  {probe.slope.toFixed(1)}° <span className="swatch" style={{ background: `rgb(${slopeClass(probe.slope).color.join(',')})` }} />{' '}
-                  {slopeClass(probe.slope).label}
-                </>
-              )}
-            </dd>
-            {layers['minerals'] && <dt>Mineral (CRISM)</dt>}
-            {layers['minerals'] && <dd>
-              {probe.mineral === null ? '–' : probe.mineral === 0 ? 'none detected or no coverage' : (
-                <>
-                  <span className="swatch" style={{ background: `rgb(${MINERAL_CLASSES[probe.mineral - 1].color.join(',')})` }} />{' '}
-                  {MINERAL_CLASSES[probe.mineral - 1].label}
-                </>
-              )}
-            </dd>}
-            <dt>Elevation (MOLA, 463 m)</dt>
-            <dd>{probe.global === null ? '–' : `${probe.global.toFixed(0)} m`}</dd>
-          </dl>
-        </div>
-      )}
     </div>
   );
 }

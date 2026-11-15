@@ -1,4 +1,5 @@
-/* Mission report: a glass panel on the Earth page. Same look as the Safest route panel. */
+/* Mission report: a glass panel on the Earth page, in the Safest route panel's style
+   (see-through light grey, dark text), with Earth blue where the Mars panels use Mars red. */
 .mission-report {
   position: absolute; inset: 0; margin: auto; z-index: 5; height: fit-content;
   width: min(940px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow-y: auto;
@@ -58,3 +59,67 @@
   .mr-cols { grid-template-columns: 1fr; }
   .mr-crew { grid-template-columns: 1fr; }
 }
+
+/* Route-panel style, Earth blue accent. */
+.mission-report {
+  --text: #1d1a17; --muted: #4a443d; --panel-border: rgba(29, 26, 23, 0.16); --earth: #1d4f8c; --accent: var(--earth);
+  color: var(--text); background: rgba(242, 240, 237, 0.78); border-color: rgba(255, 255, 255, 0.4); backdrop-filter: blur(10px);
+}
+.mission-report .mr-head { border-bottom-color: var(--panel-border); }
+.mission-report .mr-route { color: var(--earth); }
+.mission-report .mr-warn { color: #8a4b00; }
+.mission-report .mr-status[data-state="done"] .mr-dot { background: var(--earth); }
+.mission-report .mr-x:hover { color: var(--text); }
+.mission-report .mr-x:focus-visible { outline: 2px solid var(--earth); outline-offset: 2px; }
+.mission-report .mr-crew input { border-bottom-color: rgba(29, 26, 23, 0.3); }
+.mission-report .mr-crew input:focus { border-bottom-color: var(--earth); }
+.mission-report .mr-minimap, .mission-report .mr-profile { background: none; border: none; border-radius: 0; display: block; overflow: visible; }
+.mission-report .mr-svgtext { fill: #000; }
+.mission-report .mr-sw { box-shadow: 0 0 0 1px rgba(29, 26, 23, 0.25); }
+.mr-btn {
+  all: unset; box-sizing: border-box; cursor: pointer; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  color: var(--text); background: rgba(255, 255, 255, 0.35); border: 1px solid rgba(29, 26, 23, 0.12);
+}
+.mr-btn:hover { background: rgba(255, 255, 255, 0.55); }
+.mr-btn-main { color: #fff; background: var(--earth); border-color: transparent; }
+.mr-btn-main:hover { background: #26609f; }
+.mr-btn:focus-visible { outline: 2px solid var(--earth); outline-offset: 2px; }
+/* One technical-sheet look for the title block (Mission, Crew) and the numbers (distance, time, climb, oxygen):
+   the same thin frame and lines, the same small monospace labels. */
+.mission-report { --rule: rgba(29, 26, 23, 0.32); --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mr-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.mr-top-text { min-width: 0; }
+.mission-report .mr-crew {
+  flex: none; width: 260px; margin: 0; display: grid; grid-template-columns: 1fr; gap: 0;
+  border: 1px solid var(--rule); background: rgba(255, 255, 255, 0.45);
+}
+.mission-report .mr-crew label { grid-template-columns: 76px 1fr; align-items: stretch; color: var(--text); }
+.mission-report .mr-crew label + label { border-top: 1px solid var(--rule); }
+.mission-report .mr-crew label span,
+.mission-report .mr-tiles span {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.mission-report .mr-crew label span { padding: 6px 8px; border-right: 1px solid var(--rule); display: flex; align-items: center; }
+.mission-report .mr-crew input { border-bottom: none; padding: 6px 8px; font-size: 13px; font-weight: 600; }
+.mission-report .mr-crew input:focus { background: rgba(29, 79, 140, 0.08); }
+
+.mission-report .mr-tiles { gap: 0; border: 1px solid var(--rule); background: rgba(255, 255, 255, 0.45); }
+.mission-report .mr-tiles div { background: none; border: none; border-radius: 0; padding: 7px 10px; gap: 1px; }
+.mission-report .mr-tiles div:nth-child(odd) { border-right: 1px solid var(--rule); }
+.mission-report .mr-tiles div:nth-child(n + 3) { border-top: 1px solid var(--rule); }
+.mission-report .mr-tiles b { font-size: 18px; font-weight: 600; }
+.mission-report .mr-tiles i { font-family: var(--mono); font-size: 10px; }
+@media (max-width: 760px) {
+  .mr-top { flex-direction: column; }
+  .mission-report .mr-crew { width: 100%; }
+}
+/* Minerals and samples found: folded lists, the count shown in the title. */
+.mr-fold { border-top: 1px solid var(--rule); padding-top: 6px; }
+.mr-fold summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.mr-fold summary::-webkit-details-marker { display: none; }
+.mr-fold summary::before { content: "▸"; font-size: 10px; color: var(--muted); }
+.mr-fold[open] summary::before { content: "▾"; }
+.mr-fold summary h3 { margin: 0 !important; }
+.mr-fold summary:focus-visible { outline: 2px solid var(--earth); outline-offset: 2px; }
+.mr-count { font-family: var(--mono); font-size: 10px; color: var(--muted); border: 1px solid var(--rule); padding: 0 6px; }
+.mr-fold[open] > :not(summary) { margin-top: 6px; }
