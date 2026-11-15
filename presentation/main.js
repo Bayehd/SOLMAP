@@ -1,7 +1,42 @@
 /* Project Red Horizon – reveal.js deck with rocket-launch transitions */
 (function () {
   document.querySelectorAll('.chart .bar').forEach((b, i) => b.style.setProperty('--i', i));
-  document.getElementById('smoke').remove(); // a canvas is created per launching slide instead
+  // ---------- full-screen smoke overlay (slide 1 -> slide 2) ----------
+  const fog = { c: document.getElementById('smoke'), parts: [], cover: 0, emitting: false, fading: false, raf: 0 };
+  fog.ctx = fog.c.getContext('2d');
+  function fogResize() { fog.c.width = innerWidth; fog.c.height = innerHeight; }
+  addEventListener('resize', fogResize); fogResize();
+  function fogTick() {
+    const { ctx, c } = fog, w = c.width, h = c.height, now = performance.now();
+    const dt = Math.min(.1, (now - (fog.last || now)) / 1000); fog.last = now;
+    if (fog.emitting) {
+      fog.cover = Math.min(.97, fog.cover + dt * .55); // fully covered in ~1.8s
+      for (let i = 0; i < 5; i++) fog.parts.push({
+        x: Math.random() * w, y: h + 100 - Math.random() * (h + 200) * Math.min(1, fog.cover * 1.4),
+        vx: (Math.random() - .5) * 1.5, vy: -1 - Math.random() * 2,
+        r: (.12 + Math.random() * .2) * Math.max(w, h), life: 1, decay: .004 + Math.random() * .004 });
+    }
+    if (fog.fading) fog.cover = Math.max(0, fog.cover - dt * .8); // clears in ~1.2s
+    ctx.clearRect(0, 0, w, h);
+    // dense smoke rises from the ground: bottom is covered first, then the whole page
+    const top = h * (1 - Math.min(1, fog.cover * 1.25));
+    const bg = ctx.createLinearGradient(0, top - h * .25, 0, top + h * .15);
+    bg.addColorStop(0, 'rgba(232,224,214,0)'); bg.addColorStop(1, `rgba(232,224,214,${fog.cover})`);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    for (let i = fog.parts.length - 1; i >= 0; i--) {
+      const p = fog.parts[i];
+      p.x += p.vx; p.y += p.vy; p.r *= 1.003; p.life -= fog.fading ? Math.max(p.decay * 6, .02) : p.decay;
+      if (p.life <= 0) { fog.parts.splice(i, 1); continue; }
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+      const a = .45 * Math.sin(Math.PI * p.life);
+      g.addColorStop(0, `rgba(250,246,240,${a})`); g.addColorStop(.6, `rgba(215,205,195,${a * .5})`); g.addColorStop(1, 'rgba(215,205,195,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+    }
+    if (fog.fading && fog.cover <= 0 && !fog.parts.length) { fog.fading = false; fog.raf = 0; return ctx.clearRect(0, 0, w, h); }
+    fog.raf = requestAnimationFrame(fogTick);
+  }
+  function fogStart() { fog.last = 0; fog.emitting = true; fog.fading = false; if (!fog.raf) fogTick(); }
+  function fogClear() { if (fog.raf) { fog.emitting = false; fog.fading = true; } }
 
   // ---------- smoke engine (canvas lives inside the slide, behind the rocket) ----------
   const W = 1920, H = 1080;
@@ -93,6 +128,7 @@
     smoke.pad = { x: n.x, y: n.y + 30 };
     smoke.launcher = l; smoke.emitting = true;
     l.classList.add('launching');
+    if (slide.hasAttribute('data-smoke-fill')) setTimeout(() => { if (l.classList.contains('launching')) fogStart(); }, 900);
     l.addEventListener('animationend', () => l.classList.add('gone'), { once: true });
     tick();
     return true;
@@ -101,6 +137,7 @@
   function next() { if (!launchIfNeeded()) Reveal.next(); }
 
   Reveal.on('slidechanged', e => {
+    setTimeout(fogClear, 500); // new slide is revealed as the smoke clears
     if (smoke.raf) { smoke.emitting = false; smoke.fading = true; }
     // reset launchers on the slide we left so it can be replayed
     if (e.previousSlide) e.previousSlide.querySelectorAll('.launcher').forEach(l => l.classList.remove('launching', 'gone'));
