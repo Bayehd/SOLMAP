@@ -1,7 +1,7 @@
 // Earth page: a 3D ArcGIS globe of Earth, reached by rocket from the Mars map.
 // Imagery is NASA's own: GIBS "Blue Marble" (shaded relief + bathymetry). No ground elevation is added,
 // because the usual Earth elevation service is not NASA data.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ArcGISMap from '@arcgis/core/Map';
 import Camera from '@arcgis/core/Camera';
 import Point from '@arcgis/core/geometry/Point';
@@ -9,6 +9,9 @@ import WebTileLayer from '@arcgis/core/layers/WebTileLayer';
 import SceneView from '@arcgis/core/views/SceneView';
 import { whenOnce } from '@arcgis/core/core/reactiveUtils';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
+import type { Site } from '../map/sites';
+import type { RouteResult } from '../route/planner';
+import { MissionReport } from '../route/MissionReport';
 import '../map/map.css';
 import './earth.css';
 
@@ -21,7 +24,8 @@ const ALTITUDE_MIN = 900_000; // m
 const FAR = new Camera({ position: new Point({ x: -60, y: 22, z: 26_000_000 }), tilt: 0, heading: 0 });
 const NEAR = new Camera({ position: new Point({ x: -72, y: 30, z: 10_000_000 }), tilt: 0, heading: 0 });
 
-export function EarthApp({ onReady, onBack, canLeave }: { onReady: () => void; onBack: () => void; canLeave: boolean }) {
+export function EarthApp({ site, route, onReady, onBack, canLeave }: { site: Site; route: RouteResult | null; onReady: () => void; onBack: () => void; canLeave: boolean }) {
+  const [reportOpen, setReportOpen] = useState(false); // the mission report arrives once the planet is on screen
   const containerRef = useRef<HTMLDivElement>(null);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
@@ -47,6 +51,7 @@ export function EarthApp({ onReady, onBack, canLeave }: { onReady: () => void; o
       Promise.race([loaded, new Promise((r) => setTimeout(r, 6000))]).then(() => {
         if (cancelled) return;
         onReadyRef.current();
+        setTimeout(() => !cancelled && setReportOpen(true), 1500);
         setTimeout(() => {
           if (!cancelled) view.goTo(NEAR, { duration: 7000, easing: 'ease-out' }).catch(() => {});
         }, 700);
@@ -70,8 +75,14 @@ export function EarthApp({ onReady, onBack, canLeave }: { onReady: () => void; o
           <button className="btn" onClick={onBack} disabled={!canLeave}>
             ← Back to Mars
           </button>
+          {!reportOpen && (
+            <button className="btn" onClick={() => setReportOpen(true)}>
+              Mission report
+            </button>
+          )}
         </div>
       </div>
+      {reportOpen && <MissionReport site={site} route={route} onClose={() => setReportOpen(false)} />}
     </div>
   );
 }

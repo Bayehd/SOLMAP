@@ -12,11 +12,13 @@ function loadSamples(file: string | undefined): Promise<SamplePoint[]> {
   if (!samplesPromise.has(file)) samplesPromise.set(file, fetch(publicUrl(file))
     .then((r) => r.json())
     .then((gj) =>
-      (gj.features as { properties: { number: number; name: string }; geometry: { coordinates: [number, number] } }[]).map((f) => ({
+      (gj.features as { properties: { number: number; name: string; sol?: number; kind?: string }; geometry: { coordinates: [number, number] } }[]).map((f) => ({
         lon: f.geometry.coordinates[0],
         lat: f.geometry.coordinates[1],
         name: f.properties.name,
         number: f.properties.number,
+        sol: f.properties.sol,
+        kind: f.properties.kind,
       })),
     )
     .catch(() => []));

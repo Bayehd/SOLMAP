@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { MapApp } from './map/MapApp';
 import { EarthApp } from './earth/EarthApp';
+import type { RouteResult } from './route/planner';
 import { Rocket } from './home/Rocket';
 import { Lander } from './home/Lander';
 import type { RoverControl } from './map/rover';
@@ -40,6 +41,7 @@ export function App() {
   const [world, setWorld] = useState<World>('mars');
   const [trip, setTrip] = useState<Trip>('none');
   const [pad, setPad] = useState<Pad | null>(null); // where the rocket stands when it leaves the Mars map
+  const [reportRoute, setReportRoute] = useState<RouteResult | null>(null); // the route chosen on Mars, for the mission report on Earth
   const [earthReady, setEarthReady] = useState(false);
   const [fromEarth, setFromEarth] = useState(false); // coming back from Earth: no home page, just the landing
   const worldRef = useRef(world);
@@ -98,8 +100,9 @@ export function App() {
     if (phase === 'done') setFromEarth(false);
   }, [phase]);
 
-  const startTrip = (p: Pad | null) => {
+  const startTrip = (p: Pad | null, route: RouteResult | null = null) => {
     setPad(p);
+    if (worldRef.current === 'mars') setReportRoute(route);
     if (reducedMotion()) enterTransit();
     else setTrip('ignite');
   };
@@ -158,7 +161,7 @@ export function App() {
         />
       )}
 
-      {world === 'earth' && <EarthApp onReady={() => setEarthReady(true)} onBack={() => startTrip(null)} canLeave={trip === 'none'} />}
+      {world === 'earth' && <EarthApp site={site} route={reportRoute} onReady={() => setEarthReady(true)} onBack={() => startTrip(null)} canLeave={trip === 'none'} />}
 
       {showHome && (
         <div className="home" data-hidden={!homeVisible}>
