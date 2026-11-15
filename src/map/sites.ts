@@ -25,6 +25,7 @@ export type Site = {
     minerals?: string;
     traverse: string;
     samples?: string;
+    sampleBoard?: string; // what each sample's info board shows, filled in by hand
     depot?: string;
     environment?: string; // measured radiation (RAD) and weather (REMS), see scripts/build_gale_layers.py
     radiation?: string; // measured RAD dose at each rover stop, see scripts/build_gale_rad.py
@@ -65,6 +66,7 @@ export const SITES: Record<SiteId, Site> = {
       minerals: 'data/jezero/crism_minerals_20m.tif',
       traverse: 'data/jezero/m20_traverse.geojson',
       samples: 'data/jezero/m20_samples.geojson',
+      sampleBoard: 'data/jezero/sample_board.json',
       depot: 'data/jezero/m20_depot.geojson',
     },
     // "Jezero Crater (Mars)" by Gaia, CC BY 4.0: its texture, georeferenced by matching the model's heights to the

@@ -53,7 +53,7 @@ npm run build
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
 | Jezero minerals (off by default) | NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node), 4 observations from 2007 | 18 m/px, smoothed to ~90 m | derived |
 | Perseverance traverse | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
-| Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions | 28 sealed samples, to sol 1441 | data |
+| Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions; in the Rover view, drawn with a 3D sample tube model | 28 sealed samples, to sol 1441 | data |
 | Three Forks sample depot | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
 | Gale elevation | USGS Astrogeology MSL Gale merged DEM (HiRISE + CTX stereo, 1 m), read from its 16 m overview and averaged to 20 m | 20 m/px | data |
 | Gale slope hazard | Derived from that DEM (Horn method) | 20 m/px | derived |
@@ -100,6 +100,19 @@ thresholds in `CLASSES` in `scripts/build_jezero_minerals.py` and rebuild.
 (its last drive end before the sealing sol), so it marks the workspace, not the exact borehole
 (a few meters off). Bell Island and Gallants have no sealing sol yet and are not shown. Update
 `SAMPLES` in `scripts/build_jezero_layers.py` as NASA adds samples. Click a point to see its name.
+
+**Sample tubes and boards (Rover view):** riding on the rover, each sample stop shows a 3D sample tube
+lying on the ground (`public/models/sample-tube.glb`, an illustrative model, not NASA data), with a round
+marker on a stem above it so it can be spotted from afar. The tube is enlarged from 0.3 m to 3 m so it shows
+from the mast camera, and lies 6 m to the right of the route, so the rover and the route line don't cover
+it. The other views keep the colored sample points.
+Clicking a tube or its marker stops the drive, stands the sample's board on the ground beside the rover
+(see-through, facing you) and turns the camera so the board and the tube both show. The board has the NASA
+facts (number, name, type, sealing sol, position), a small map of the route around the sample, and an
+image and description that **you fill in** in `public/data/jezero/sample_board.json` (keyed by sample
+number; leave a field empty to show "No image yet" / "No description yet"). Images can be put under
+`public/` and referenced by path, or linked by URL (the site must allow cross-origin use). When several
+samples were taken at one stop, the board shows them all. Press ▶ to drive on; the board goes away.
 
 **Assumption:** each depot point is the rover's position when it dropped that tube, as NASA's
 PDS file gives it. The tube lies under the rover, within about a meter of the point.
@@ -194,6 +207,8 @@ Mars color texture (`public/models/mars-8k.jpg`, 8192 × 4096, re-encoded at JPE
 (https://sketchfab.com/3d-models/mars-the-red-planet-free-7cf3b31ca60f45cc8e52f7fa863ad09a).
 Jezero crater texture (`public/models/jezero-crater-texture.jpg`): "Jezero Crater (Mars)" by Gaia, CC BY 4.0,
 Sketchfab (https://sketchfab.com/3d-models/jezero-crater-mars-f8501fbe652241b585f7734bee259ad3).
+Sample tube model (`public/models/sample-tube.glb`): "Red Horizon Mars sample tube", added by the team
+(generated with trimesh); illustrative, not a NASA model.
 The data sources are listed in the table above.
 
 ## Team
