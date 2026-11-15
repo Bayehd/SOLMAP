@@ -12,6 +12,7 @@ import SceneView from '@arcgis/core/views/SceneView';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import { RoutePanel } from '../route/RoutePanel';
 import { useRoutePlanner } from '../route/useRoutePlanner';
+import type { RouteResult } from '../route/planner';
 import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSampleTubes } from './sampleTubes';
@@ -112,7 +113,7 @@ export function MapApp({
   /** Filled while the 3D view is up, for the landing animation. */
   roverControl?: RefObject<RoverControl | null>;
   /** "Go to Earth" was clicked. pad = screen position of the rover, or null if it is off screen. */
-  onTravel?: (pad: { x: number; y: number } | null) => void;
+  onTravel?: (pad: { x: number; y: number } | null, route: RouteResult | null) => void;
   canTravel?: boolean;
 }) {
   const roverControlRef = useRef(roverControl);
@@ -557,7 +558,7 @@ export function MapApp({
     const pad = new Point({ x: lon, y: lat, z: ground, spatialReference: marsSR() });
     const p = view?.toScreen(pad);
     const onScreen = p && view && p.x > 0 && p.y > 0 && p.x < view.width && p.y < view.height;
-    onTravel?.(onScreen ? { x: p.x, y: p.y } : null);
+    onTravel?.(onScreen ? { x: p.x, y: p.y } : null, plannerRef.current.plan?.safest ?? null); // the route chosen in the planner goes into the Earth report
   };
 
   return (
