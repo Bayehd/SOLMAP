@@ -103,9 +103,8 @@ export function Rocket() {
           y === 250 && x > 26 && x < 70 ? null : <rect key={`${x}-${y}`} x={x} y={y} width="0.9" height="2.2" fill="#2a2d31" />,
         ),
       )}
-      {/* NASA flag: white, with the NASA insignia (blue disc, white stars and orbit, red vector, NASA lettering) */}
-      <g transform="translate(20 204)">
-        <rect width="24" height="15" fill="#ffffff" stroke="#c9ccd1" strokeWidth="0.3" />
+      {/* NASA insignia (blue disc, white stars and orbit, red vector, NASA lettering), painted on the fairing */}
+      <g transform="translate(10.8 194.5) scale(2)">
         <circle cx="12" cy="7.5" r="6" fill="#0b3d91" />
         {[
           [8.4, 4.6],
