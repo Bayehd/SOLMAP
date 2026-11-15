@@ -151,12 +151,14 @@ table.cmp tr:last-child th, table.cmp tr:last-child td { border-bottom:0; }
 .reveal section.present .flag-end { animation:inUp .8s both 3.4s; }
 .merge span:nth-child(1){background:#7a4a26}.merge span:nth-child(2){background:#444}.merge span:nth-child(3){background:#8a2fb8}.merge span:nth-child(4){background:#1f8fa0}
 
-.ground-text { perspective:900px; perspective-origin:50% 0%; }
-.ground-text h2 { text-align:center; white-space:nowrap; font-size:165px; line-height:1; margin:0; padding-top:120px; transform-origin:50% 100%;
-  transform:rotateX(58deg); color:#fff6ec;
-  text-shadow:0 2px 0 #e8d6c4,0 4px 0 #d9bfa6,0 6px 0 #c9a688,0 8px 0 #b48a69,0 10px 0 #9a6f4f,0 30px 30px rgba(60,20,0,.55); }
-.reveal section.present .ground-text h2 { animation:settle 1.6s cubic-bezier(.2,.8,.2,1) both; }
-@keyframes settle { from{opacity:0;transform:rotateX(0deg) translateY(-300px) scale(.8)} 70%{opacity:1} to{opacity:1;transform:rotateX(58deg)} }
+.ground-text h2 { position:absolute; left:0; width:1920px; top:120px; text-align:center; white-space:nowrap; font-size:130px; line-height:1; margin:0; transform-origin:50% 100%; }
+.ground-text .stand { color:#fff6ec; z-index:2;
+  text-shadow:2px 2px 0 #e8d6c4,4px 4px 0 #d9bfa6,6px 6px 0 #c9a688,8px 8px 0 #b48a69,10px 10px 0 #9a6f4f; }
+.ground-text .stand-shadow { color:rgba(70,25,0,.45); filter:blur(4px); z-index:1; transform:scaleY(-.35) skewX(50deg); transform-origin:50% 100%; }
+.reveal section.present .ground-text .stand { animation:rise 1.3s cubic-bezier(.2,.9,.3,1.2) both; }
+.reveal section.present .ground-text .stand-shadow { animation:shadowIn 1.3s ease-out both; }
+@keyframes rise { from{opacity:0;transform:scaleY(0)} 40%{opacity:1} to{opacity:1;transform:scaleY(1)} }
+@keyframes shadowIn { from{opacity:0;transform:scaleY(0) skewX(50deg)} to{opacity:1;transform:scaleY(-.35) skewX(50deg)} }
 
 /* objective 1: stacked map layers */
 .plates { width:1040px; height:1080px; }
