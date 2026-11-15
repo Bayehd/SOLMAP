@@ -30,11 +30,13 @@ where Mount Sharp already rises 4 km). The lowest checked layer (the traverse, w
 stays on the ground under the stack. Every slab shows the base map with its
 layer's data on top, as on the map, and is labelled. The rover is hidden in this view.
 
-The **Rover** view rides on the rover at the height of its mast cameras (2.2 m) as it drives the traverse,
-looking ahead with only its wheels in view (`public/models/perseverance-wheels.glb`, cut from the rover model by
-`scripts/make_wheels_model.py`) and the route ahead drawn on the ground like a navigation app (blue ahead, gray
-where it has been). It shows only the ground (base map and, at Jezero, the crater model texture): the data
-layers, planner and panels are hidden. ▶ starts and pauses the drive.
+The **Rover** view rides on a camera fixed on top of the rover (just above the mast) as it drives the
+traverse, looking ahead over its front: the mast, arm and front of the deck stay in the same place at the
+bottom of the screen (a picture of the 3D model from that camera, `public/models/rover-front.webp`, made with
+`scripts/capture_rover_front.mjs` and `scripts/cutout_rover_front.py`, so it cannot shake as the rover drives). The route is one continuous, very wide (5 m) and see-through track on the ground,
+in a darker, faint shade of the ground's tan, so it reads as a road. It shows only the ground
+(base map and, at Jezero, the crater model texture): the data layers, planner and panels are hidden.
+▶ starts and pauses the drive.
 
 ```sh
 npm install
@@ -44,16 +46,16 @@ npm run build
 
 | Layer | Source | Resolution | Kind |
 |---|---|---|---|
-| CTX image mosaic (Mars color) | Murray Lab, Caltech (NASA MRO CTX), hosted by Esri, tinted in Mars color ([about](https://murray-lab.caltech.edu/CTX/)) | ~5 m/px | derived |
-| SOLMAP model texture | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
-| Crater model texture (Jezero) | `public/models/jezero-crater-texture.jpg`, the texture of "Jezero Crater (Mars)" by Gaia (artist model, not NASA data), placed by matching the model's heights to the USGS DTM (RMS 17 m), shown over the 20 m DTM area only; from close up, CTX detail is blended in | ~84 m/px | artistic |
+| Satellite photos (CTX image mosaic) | Murray Lab, Caltech (NASA MRO CTX), hosted by Esri, tinted in Mars color ([about](https://murray-lab.caltech.edu/CTX/)) | ~5 m/px | derived |
+| Painted Mars (SOLMAP model texture) | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
+| Realistic crater (Jezero crater model texture) | `public/models/jezero-crater-texture.jpg`, the texture of "Jezero Crater (Mars)" by Gaia (artist model, not NASA data), placed by matching the model's heights to the USGS DTM (RMS 17 m), shown over the 20 m DTM area only; from close up, CTX detail is blended in | ~84 m/px | artistic |
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
 | Jezero minerals (off by default) | NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node), 4 observations from 2007 | 18 m/px, smoothed to ~90 m | derived |
 | Perseverance traverse | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
 | Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions; in the Rover view, drawn with a 3D sample tube model | 28 sealed samples, to sol 1441 | data |
-| Three Forks sample depot | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
+| Sample depot (Three Forks) | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
 | Gale elevation | USGS Astrogeology MSL Gale merged DEM (HiRISE + CTX stereo, 1 m), read from its 16 m overview and averaged to 20 m | 20 m/px | data |
 | Gale slope hazard | Derived from that DEM (Horn method) | 20 m/px | derived |
 | Curiosity traverse | NASA/JPL MSL MMGIS, to sol 5073 | per drive | data |

@@ -80,7 +80,7 @@ export const SAMPLE_KINDS = [
 const BASE_MAPS: LayerDef[] = [
   {
     id: 'model-texture',
-    title: 'SOLMAP model texture',
+    title: 'Painted Mars',
     group: 'Base map',
     basemap: true,
     visible: false,
@@ -95,7 +95,7 @@ const BASE_MAPS: LayerDef[] = [
   },
   {
     id: 'ctx-mosaic',
-    title: 'CTX image mosaic (Mars color)',
+    title: 'Satellite photos',
     group: 'Base map',
     visible: true,
     kind: 'data',
@@ -138,7 +138,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     {
       id: 'elevation',
-      title: 'Elevation',
+      title: 'Height',
       group: terrain,
       visible: !site.texture, // where the site has a model texture, that is shown instead (the elevation colors would cover it)
       opacity: 0.7,
@@ -171,7 +171,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     {
       id: 'slope',
-      title: 'Slope hazard',
+      title: 'Steep slopes',
       group: terrain,
       visible: false,
       opacity: 0.65,
@@ -198,7 +198,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     !!f.minerals && {
       id: 'minerals',
-      title: 'Minerals (CRISM)',
+      title: 'Minerals',
       group: `${site.short} minerals`,
       visible: false,
       opacity: 0.85,
@@ -222,7 +222,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     {
       id: 'traverse',
-      title: 'Rover traverse',
+      title: 'Rover path',
       group: rover,
       visible: true,
       kind: 'data',
@@ -241,7 +241,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     !!f.samples && {
       id: 'samples',
-      title: 'Samples collected',
+      title: 'Rock samples',
       group: rover,
       visible: true,
       kind: 'data',
@@ -273,7 +273,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     !!f.depot && {
       id: 'depot',
-      title: 'Three Forks sample depot',
+      title: 'Sample depot',
       group: rover,
       visible: true,
       kind: 'data',
@@ -302,7 +302,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     !!f.radiation && {
       id: 'radiation',
-      title: `${rover} radiation dose (RAD)`,
+      title: 'Radiation',
       group: 'Radiation',
       visible: false,
       kind: 'data',

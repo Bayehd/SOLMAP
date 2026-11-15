@@ -17,7 +17,7 @@ import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSampleTubes } from './sampleTubes';
 import { createSiteElevationLayer } from './SiteElevationLayer';
 import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
-import { METERS_PER_DEGREE, marsSR } from './mars';
+import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
 import { formatLatLon, insideSite, landingExtent, siteExtent, type Site } from './sites';
 import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl, type RoverPose } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
@@ -65,13 +65,21 @@ const SIDE_HEADING = 35;
 const SIDE_ZOOM = 0.85; // after framing the whole stack, move in this much closer (smaller = closer)
 const LABEL_GAP_PX = 24; // between the stack and its labels
 const TOP_ZOOM = 0.65; // top view frames this fraction of the site's area (smaller = closer)
-// Rover view: riding on the rover at the height of its mast cameras, looking where it drives. Only its wheels are drawn
-// (rover.ts), at the bottom of the screen, with the route line ahead (routeGuide.ts).
-const ROVER_CAM_BACK_M = 3; // camera behind the middle of the wheels, so the front and middle wheels are in view
-const ROVER_CAM_UP_M = 2.2; // camera height above the ground: the top of the mast
-const ROVER_TILT = 70; // degrees from straight down: the front wheels at the bottom of the screen, the horizon at the top
-const ROVER_FOV = 85; // degrees, a wide lens so the wheels on both sides fit
+// Rover view: a camera fixed on the front of the rover, looking where it drives: the front of the rover at the bottom
+// of the screen, the route line ahead (routeGuide.ts) and the horizon. It moves and turns with the rover.
+const ROVER_CAM_FORWARD_M = -1.5; // camera over the back of the deck, looking over the front
+const ROVER_CAM_UP_M = 2.9; // camera height above the ground: above the top of the mast (the rover is 2.2 m tall)
+const ROVER_TILT = 74; // degrees from straight down: the front of the rover at the bottom of the screen, more sky and horizon above
+const ROVER_FOV = 85; // degrees, a wide lens
 const DEFAULT_FOV = 55; // ArcGIS's, for the other views
+/**
+ * The front of the rover as seen from the Rover view's camera, cut out of a render of the 3D model
+ * (scripts/capture_rover_front.mjs and scripts/cutout_rover_front.py). While riding it is drawn over the map, fixed
+ * to the screen, instead of the 3D model: the view draws moved 3D graphics a frame or two after it moves the camera,
+ * so a model driving at speed would shake in front of it. Sizes are in CSS px of the window it was made in (refW ×
+ * refH); left/top are from that window's center. Remake it if the ROVER_CAM_* constants, tilt or fov change.
+ */
+const ROVER_FRONT = { file: 'models/rover-front.webp', refW: 1000, refH: 1613, left: -480, top: -33.3, width: 963.3 };
 const ROVER_VIEW_SPEED = 30; // m/s while in this view (the whole route takes ~25 min instead of 90 s)
 const ROVER_CLIP_NEAR_M = 0.5; // draw the ground from this close to the camera
 const ROVER_CLIP_FAR_M = 400_000; // to the horizon and the crater rims
@@ -123,8 +131,15 @@ export function MapApp({
   const groups = useMemo(() => [...new Set(defs.map((l) => l.group))], [defs]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => initialVisibility(defs));
   const [probe, setProbe] = useState<Probe | null>(null);
-  const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [routeOpen, setRouteOpen] = useState(false); // the safest-route panel, from the Route button // the layer list opens from the layers icon
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
+  const [riding, setRiding] = useState(false); // in the Rover view, on the rover (after the camera has flown down)
+  // A sample board is up: the camera has turned off the rover to it, so the rover is drawn in 3D, not as the picture.
+  const [boardUp, setBoardUp] = useState(false);
+  const boardUpRef = useRef(boardUp);
+  boardUpRef.current = boardUp;
+  const [viewSize, setViewSize] = useState({ width: 0, height: 0 });
   const roverRef = useRef<ReturnType<typeof attachRover> | null>(null);
   const driveRef = useRef(drive);
   driveRef.current = drive;
@@ -185,7 +200,13 @@ export function MapApp({
     });
     viewRef.current = view;
     if (import.meta.env.DEV) Object.assign(window, { solmap: { map, view, layers } }); // for the browser console
-    view.ui.move(['zoom', 'compass', 'navigation-toggle'], 'bottom-right');
+    // Bottom right, one column like Google Maps: the compass, zoom, then pan/rotate.
+    view.ui.move(['compass', 'zoom', 'navigation-toggle'], 'bottom-right');
+    const sizeWatch = watch(
+      () => [view.width, view.height],
+      ([width, height]) => setViewSize({ width, height }),
+      { initial: true },
+    );
     const rover = attachRover(view, roverLayer, site, setDrive);
     roverRef.current = rover;
     if (roverControlRef.current) roverControlRef.current.current = rover;
@@ -213,6 +234,8 @@ export function MapApp({
         if (samples) {
           if (driveRef.current.playing) roverRef.current?.toggleDrive();
           setProbe(null);
+          setBoardUp(true);
+          boardUpRef.current = true; // before the camera turns, so nothing puts it back on the rover
           const { position, heading, tilt } = await tubes.showBoard(view, samples, ROVER_CAM_UP_M);
           view.goTo(new Camera({ position, heading, tilt, fov: BOARD_FOV }), { duration: 1200, easing: 'cubic-in-out' }).catch(() => {});
           return;
@@ -254,6 +277,7 @@ export function MapApp({
 
     return () => {
       click.remove();
+      sizeWatch.remove();
       rover.remove();
       if (roverRef.current === rover) roverRef.current = null;
       if (roverControlRef.current?.current === rover) roverControlRef.current.current = null;
@@ -265,15 +289,20 @@ export function MapApp({
   }, [map, layers, globalElevation, roverLayer, tubes, site]);
 
   useEffect(() => {
-    roverLayer.visible = showRover && cameraView !== 'side'; // hidden under the stack
+    roverLayer.visible = showRover && cameraView !== 'side' && (!riding || boardUp); // hidden under the stack, or shown as a picture
     guideLayer.visible = cameraView === 'rover';
     tubes.tubeLayer.visible = tubes.boardLayer.visible = cameraView === 'rover';
-    if (cameraView !== 'rover') tubes.clearBoard();
-  }, [showRover, roverLayer, guideLayer, tubes, cameraView]);
+    if (cameraView !== 'rover') {
+      tubes.clearBoard();
+      setBoardUp(false);
+    }
+  }, [showRover, roverLayer, guideLayer, tubes, cameraView, riding, boardUp]);
 
   // Driving on takes the board down.
   useEffect(() => {
-    if (drive.playing) tubes.clearBoard();
+    if (!drive.playing) return;
+    tubes.clearBoard();
+    setBoardUp(false); // the next drive step puts the camera back on the rover
   }, [drive.playing, tubes]);
 
   // Rover view: the camera rides behind the rover and looks along the route; it moves with every step of the drive.
@@ -283,32 +312,50 @@ export function MapApp({
     if (cameraView !== 'rover' || !view || !rover) return;
     let lastZ: number | null = null;
     const cameraAt = (p: RoverPose) => {
-      // Ground height: the route's profile from the full-resolution terrain once it has loaded, and the terrain
-      // already loaded in the view (synchronous, but coarser), whichever is higher, so the camera never dips under the ground.
-      // The camera is behind the rover, so the ground under it is checked too (it may be higher on a slope).
+      // The camera is fixed to the rover, which sits on the ground as the view draws it (its loaded terrain, read
+      // synchronously): the camera height is measured from that same ground under the rover's middle. Until it is
+      // loaded there, the route's profile from the full-resolution terrain stands in. The camera is also kept above
+      // the drawn ground right under it, so on a slope it never dips into the hill.
       const h = (p.travelHeading * Math.PI) / 180;
-      const lon = p.lon - (ROVER_CAM_BACK_M * Math.sin(h)) / (METERS_PER_DEGREE * Math.cos((p.lat * Math.PI) / 180));
-      const lat = p.lat - (ROVER_CAM_BACK_M * Math.cos(h)) / METERS_PER_DEGREE;
-      const quick = (x: number, y: number) =>
-        (view.groundView?.elevationSampler?.queryElevation(new Point({ x, y, spatialReference: marsSR() })) as Point | null | undefined)?.z;
-      const zs = [p.groundZ, quick(p.lon, p.lat), quick(lon, lat)].filter((z): z is number => typeof z === 'number' && Number.isFinite(z));
-      if (zs.length) lastZ = Math.max(...zs);
-      const position = new Point({ x: lon, y: lat, z: (lastZ ?? site.landingElevationM) + ROVER_CAM_UP_M, spatialReference: marsSR() });
+      const lon = p.lon + (ROVER_CAM_FORWARD_M * Math.sin(h)) / (METERS_PER_DEGREE * Math.cos((p.lat * Math.PI) / 180));
+      const lat = p.lat + (ROVER_CAM_FORWARD_M * Math.cos(h)) / METERS_PER_DEGREE;
+      const quick = (x: number, y: number) => {
+        const z = (view.groundView?.elevationSampler?.queryElevation(new Point({ x, y, spatialReference: marsSR() })) as Point | null | undefined)?.z;
+        // It can answer a "no data" value (~3.4e37) while terrain is loading: only take real Martian heights.
+        return typeof z === 'number' && Math.abs(z) < 30_000 ? z : null;
+      };
+      lastZ = quick(p.lon, p.lat) ?? p.groundZ ?? lastZ;
+      const underCamera = quick(lon, lat);
+      let z = (lastZ ?? site.landingElevationM) + ROVER_CAM_UP_M;
+      if (underCamera !== null) z = Math.max(z, underCamera + ROVER_CLIP_NEAR_M * 2);
+      const position = new Point({ x: lon, y: lat, z, spatialReference: marsSR() });
       return new Camera({ position, heading: p.travelHeading, tilt: ROVER_TILT, fov: ROVER_FOV });
     };
     let entering = true; // flying down into the rover; drive steps take over when it ends
     view
       .goTo(cameraAt(rover.pose()), { duration: 2500, easing: 'cubic-in-out' })
       .catch(() => {})
-      .then(() => (entering = false));
+      .then(() => {
+        entering = false;
+        setRiding(true); // landed on the rover: the fixed picture takes over from the 3D model
+      });
     rover.setSpeed(ROVER_VIEW_SPEED);
     rover.setRiding(true);
-    const guide = routeGuideUpdater(guideLayer, rover.routeBetween);
-    guide(rover.pose().distM, true);
+    const guide = routeGuideUpdater(guideLayer, rover);
+    guide(rover.pose().distM);
     rover.onMove((p) => {
       guide(p.distM);
       if (!entering) view.camera = cameraAt(p);
     });
+    // Finer terrain keeps arriving after the camera lands (and while parked nothing else moves it): put the camera
+    // back on the rover each time the view has finished loading, so it sits on the ground the rover is drawn on.
+    const settle = watch(
+      () => view.updating,
+      (updating) => {
+        if (updating) return;
+        if (!entering && !boardUpRef.current) view.camera = cameraAt(rover.pose());
+      },
+    );
     // ArcGIS sets the near clipping plane from the camera's height (~8 m here), which would cut away the ground
     // just ahead of the rover: set it by hand while riding.
     const clip = view.constraints.clipDistance;
@@ -317,8 +364,10 @@ export function MapApp({
     clip.far = ROVER_CLIP_FAR_M;
     return () => {
       rover.onMove(null);
+      settle.remove();
       rover.setSpeed(null);
       rover.setRiding(false);
+      setRiding(false);
       guideLayer.removeAll();
       // Normally showView has already put the lens back before flying out; setting the camera here would stop that flight.
       if (view.camera.fov !== DEFAULT_FOV && !view.animation) view.camera = normalLens(view.camera);
@@ -464,7 +513,74 @@ export function MapApp({
 
       <div className="map-left">
       <div className="map-toolbar">
-        <div className="segmented" role="group" aria-label="Camera view">
+        {cameraView !== 'rover' && (
+          <button className="btn" onClick={goEarth} disabled={!canTravel} aria-label="Go to Earth" title="Go to Earth">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              {/* a globe: outline, meridian and parallels */}
+              <circle cx="12" cy="12" r="9" />
+              <ellipse cx="12" cy="12" rx="4" ry="9" />
+              <path d="M3 12h18M4.5 7.5h15M4.5 16.5h15" />
+            </svg>
+          </button>
+        )}
+        {showRover && (
+          <button
+            className="btn play-btn"
+            onClick={() => roverRef.current?.toggleDrive()}
+            disabled={!canTravel || !drive.ready}
+            aria-label={drive.playing ? 'Pause drive' : 'Drive the route'}
+            title={drive.playing ? 'Pause' : 'Drive the route'}
+          >
+            {drive.playing ? '❚❚' : '▶'}
+          </button>
+        )}
+        {cameraView !== 'rover' && (
+          <button
+            className="btn"
+            aria-pressed={routeOpen}
+            aria-controls="route-panel"
+            onClick={() => setRouteOpen((o) => !o)}
+            title="Plan the safest route"
+            aria-label="Safest route"
+          >
+            {/* a winding route between a start dot and an end pin */}
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="5" cy="19" r="2" />
+              <path d="M7 19h8.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H13" />
+              <path d="M18 9.5s-3-2.9-3-5a3 3 0 0 1 6 0c0 2.1-3 5-3 5Z" />
+              <circle cx="18" cy="4.5" r="0.6" fill="currentColor" />
+            </svg>
+          </button>
+        )}
+        {cameraView === 'rover' && (
+          <span className="drive-km" aria-live="off">
+            {drive.km.toFixed(2)} / {drive.totalKm.toFixed(1)} km
+          </span>
+        )}
+      </div>
+      {cameraView !== 'rover' && <RoutePanel planner={planner} site={site} open={routeOpen} />}
+      </div>
+
+      {riding && !boardUp && viewSize.width > 0 && (
+        <img
+          className="rover-front"
+          src={publicUrl(ROVER_FRONT.file)}
+          alt=""
+          style={(() => {
+            // The camera's field of view is measured on the diagonal, so the picture scales with the window's diagonal.
+            const k = Math.hypot(viewSize.width, viewSize.height) / Math.hypot(ROVER_FRONT.refW, ROVER_FRONT.refH);
+            return {
+              left: viewSize.width / 2 + ROVER_FRONT.left * k,
+              top: viewSize.height / 2 + ROVER_FRONT.top * k,
+              width: ROVER_FRONT.width * k,
+            };
+          })()}
+        />
+      )}
+
+      {/* Camera views, bottom left (▶ and the route stay at the top left). */}
+      <div className="map-toolbar map-views">
+          <div className="view-buttons" role="group" aria-label="Camera view">
           {CAMERA_VIEWS.map(({ id, label }) => (
             <button
               key={id}
@@ -478,24 +594,6 @@ export function MapApp({
             </button>
           ))}
         </div>
-        {showRover && (
-          <button
-            className="btn play-btn"
-            onClick={() => roverRef.current?.toggleDrive()}
-            disabled={!canTravel || !drive.ready}
-            aria-label={drive.playing ? 'Pause drive' : 'Drive the route'}
-            title={drive.playing ? 'Pause' : 'Drive the route'}
-          >
-            {drive.playing ? '❚❚' : '▶'}
-          </button>
-        )}
-        {cameraView === 'rover' && (
-          <span className="drive-km" aria-live="off">
-            {drive.km.toFixed(2)} / {drive.totalKm.toFixed(1)} km
-          </span>
-        )}
-      </div>
-      {cameraView !== 'rover' && <RoutePanel planner={planner} site={site} />}
       </div>
 
       {(showRover || textureShown) && (
@@ -540,16 +638,26 @@ export function MapApp({
 
       <div className="map-right" hidden={cameraView === 'rover'}>
       <div className="layer-panel panel" data-open={panelOpen}>
-        <button className="panel-toggle" aria-expanded={panelOpen} onClick={() => setPanelOpen((o) => !o)}>
-          Layers
+        <button
+          className="layers-icon"
+          aria-expanded={panelOpen}
+          aria-label={panelOpen ? 'Hide layers' : 'Show layers'}
+          title="Layers"
+          onClick={() => setPanelOpen((o) => !o)}
+        >
+          {/* three stacked sheets */}
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+            <path d="M12 3 2.5 8 12 13l9.5-5L12 3Z" />
+            <path d="m2.5 12 9.5 5 9.5-5" />
+            <path d="m2.5 16 9.5 5 9.5-5" />
+          </svg>
         </button>
         {panelOpen &&
           groups.map((group) => (
-            <section key={group}>
-              <h2>{group}</h2>
+            <section key={group} aria-label={group}>
               {defs.filter((l) => l.group === group).map((def) => (
                 <div key={def.id} className="layer-row">
-                  <label>
+                  <label data-on={visibility[def.id]}>
                     <input
                       type={def.basemap ? 'radio' : 'checkbox'}
                       name={def.basemap ? 'basemap' : undefined}
@@ -564,9 +672,6 @@ export function MapApp({
             </section>
           ))}
       </div>
-      <button className="btn earth-btn" onClick={goEarth} disabled={!canTravel}>
-        Go to Earth →
-      </button>
       </div>
 
       {probe && (

@@ -1,7 +1,7 @@
 /* ---------- Home page ---------- */
 .home {
   --home-rocket-x: 80vw; /* where the rocket stands (ground-contact point) */
-  --home-rocket-y: 78vh;
+  --home-rocket-y: 128vh; /* below the screen: the big rocket is cut by the bottom edge, nose near the top */
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -20,31 +20,42 @@
   left: max(16px, 8vw);
   top: 50%;
   transform: translateY(-50%);
-  max-width: min(440px, calc(100vw - 32px));
+  max-width: calc(72vw - 16px);
 }
-.home-kicker { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
-.home-title { margin: 0 0 28px; font-size: clamp(28px, 4.5vw, 44px); font-weight: 600; line-height: 1.1; }
+.home-title { margin: 0 0 28px; font-size: clamp(22px, 3.6vw, 44px); font-weight: 600; line-height: 1.1; white-space: nowrap; }
 
-.home-sites { display: grid; gap: 12px; }
+/* The landing sites side by side: a picture of the crater, its name on a see-through band at the bottom. */
+.home-sites { display: flex; flex-wrap: wrap; gap: 14px; }
 .home-site {
   all: unset;
   box-sizing: border-box;
-  display: grid;
-  gap: 4px;
-  width: 100%;
-  padding: 18px 20px;
-  border: 1px solid var(--panel-border);
+  position: relative;
+  display: block;
+  width: min(360px, 27vw);
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   background: #0b0b0d;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.2s;
 }
-.home-site:hover:not(:disabled), .home-site:focus-visible { border-color: var(--accent); background: #121115; }
+.home-site-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.85; transition: opacity 0.2s, transform 0.4s; }
+.home-site-name {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 14px 10px;
+  font-size: 19px; font-weight: 600; white-space: nowrap; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  /* the picture fades out under the name, so the name reads */
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.6) 45%);
+}
+.home-site:hover:not(:disabled), .home-site:focus-visible { border-color: #b8432b; }
+.home-site:hover:not(:disabled) .home-site-img { opacity: 1; transform: scale(1.04); }
 .home-site:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .home-site:disabled { cursor: default; }
-.home-site-name { font-size: 20px; font-weight: 600; }
-.home-site-meta { font-size: 13px; color: var(--muted); }
-.home-site-go { margin-top: 8px; font-size: 13px; color: var(--accent); }
+.home-site:disabled .home-site-img { opacity: 0.45; }
+.home-site[data-launching="true"] { border-color: #b8432b; }
+.home-site[data-launching="true"] .home-site-img { opacity: 1; }
+
+@media (max-width: 640px) { .home-site { width: min(42vw, 220px); } }
 
 .home-pad {
   position: absolute;
@@ -57,12 +68,12 @@
 
 /* ---------- Rocket ---------- */
 .rocket {
-  --h: min(62vh, 470px);
+  --h: 140vh; /* on the start page: big, nose at ~6vh, base below the screen */
   position: fixed;
   z-index: 30;
   pointer-events: none;
   left: var(--rx, 80vw); /* --rx/--ry/--h are set when the rocket leaves from the Mars map */
-  top: var(--ry, 78vh);
+  top: var(--ry, 128vh);
   height: var(--h);
   aspect-ratio: 100 / 800;
   transform: translate(-50%, -87.5%); /* anchor at the nozzle exits (y = 700 of 800) */
@@ -83,8 +94,8 @@
 }
 
 /* Lift-off: accelerate straight up and out of the page. */
-.rocket[data-phase="launch"] { top: -75vh; transition: top 2.4s cubic-bezier(0.55, 0, 0.9, 0.5); }
-.rocket[data-phase="waiting"] { top: -75vh; }
+.rocket[data-phase="launch"] { top: -30vh; transition: top 2.4s cubic-bezier(0.55, 0, 0.9, 0.5); }
+.rocket[data-phase="waiting"] { top: -30vh; }
 
 /* Booster separation 1 s into the climb: the solids burn out, then drift outward, tumble and fall behind.
    Offsets are in viewBox units (CSS px on SVG elements). */
@@ -130,8 +141,8 @@
 @keyframes ld-dust-puff { from { opacity: 0.65; transform: scale(0.9); } to { opacity: 0; transform: scale(1.7); } }
 
 @media (max-width: 640px) {
-  .home { --home-rocket-x: 86vw; --home-rocket-y: 88vh; }
-  .rocket { --h: min(46vh, 280px); left: var(--rx, 86vw); top: var(--ry, 88vh); }
+  .home { --home-rocket-x: 86vw; --home-rocket-y: 108vh; }
+  .rocket { --h: 105vh; left: var(--rx, 86vw); top: var(--ry, 108vh); }
   .home-content { top: 40%; max-width: calc(72vw - 16px); }
 }
 
