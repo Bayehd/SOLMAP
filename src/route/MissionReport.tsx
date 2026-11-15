@@ -2,7 +2,7 @@
 // Uses the route walked in the route planner; with none chosen, the rover's own traverse.
 import { useEffect, useMemo, useState } from 'react';
 import { MINERAL_CLASSES } from '../map/layers';
-import { formatLatLon, type Site } from '../map/sites';
+import type { Site } from '../map/sites';
 import { LIMITS, ASSUMPTIONS } from './config';
 import { OXYGEN, oxygenUse } from './oxygen';
 import { MINERAL_NEAR_M, type RouteResult } from './planner';
@@ -11,6 +11,8 @@ import './report.css';
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STEP_S = 0.5; // seconds between sections appearing
+/** Earth blue: the report's accent, where the Mars panels use Mars red. */
+const EARTH_BLUE = '#1d4f8c';
 
 const fmtKm = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`);
 const fmtMin = (min: number) => (min >= 60 ? `${Math.floor(min / 60)} h ${Math.round(min % 60)} min` : `${Math.round(min)} min`);
@@ -47,36 +49,34 @@ function MiniMap({ route, samples }: { route: RouteResult; samples: { lon: numbe
   const a = px(route.path[0]), b = px(route.path[route.path.length - 1]);
   return (
     <svg className="mr-minimap" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Route map, north up">
-      <polyline points={pts} fill="none" stroke="#3cdcff" strokeWidth="2.4" strokeLinejoin="round" pathLength={1} className="mr-draw" />
-      {samples.map((s, i) => { const [x, y] = px([s.lon, s.lat]); return <circle key={i} cx={x} cy={y} r="3" fill="#f5b841" />; })}
-      <circle cx={a[0]} cy={a[1]} r="5" fill="#3cc85a" stroke="#fff" strokeWidth="1.5" />
-      <circle cx={b[0]} cy={b[1]} r="5" fill="#f04646" stroke="#fff" strokeWidth="1.5" />
+      <polyline points={pts} fill="none" stroke={EARTH_BLUE} strokeWidth="2.4" strokeLinejoin="round" pathLength={1} className="mr-draw" />
+      {samples.map((s, i) => { const [x, y] = px([s.lon, s.lat]); return <circle key={i} cx={x} cy={y} r="3" fill="#f5b841" stroke="#1d1a17" strokeWidth="0.8" />; })}
+      <circle cx={a[0]} cy={a[1]} r="5" fill="#fff" stroke="#1d1a17" strokeWidth="1.5" />
+      <circle cx={b[0]} cy={b[1]} r="5" fill={EARTH_BLUE} stroke="#fff" strokeWidth="1.5" />
       <text x={W - 6} y={H - 6} textAnchor="end" className="mr-svgtext">north up</text>
     </svg>
   );
 }
 
 function Profile({ route }: { route: RouteResult }) {
-  const { distM, z, slope } = route.profile;
-  const W = 420, H = 110;
+  const { distM, z } = route.profile;
+  // Plot area inside the SVG, with room on the left and bottom for the axis labels.
+  const W = 420, H = 110, L = 40, B = 14, T = 4, R = 4;
   const total = distM[distM.length - 1] || 1;
   let lo = Infinity, hi = -Infinity;
   for (const v of z) if (!Number.isNaN(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
   if (!(hi > lo)) hi = lo + 1;
-  const x = (d: number) => (d / total) * W;
-  const y = (v: number) => H - ((v - lo) / (hi - lo)) * (H - 10) - 5;
+  const x = (d: number) => L + (d / total) * (W - L - R);
+  const y = (v: number) => H - B - ((v - lo) / (hi - lo)) * (H - B - T);
   const pts = z.map((v, i) => (Number.isNaN(v) ? null : `${x(distM[i]).toFixed(1)},${y(v).toFixed(1)}`)).filter(Boolean).join(' ');
   return (
     <svg className="mr-profile" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Elevation profile of the route">
-      {z.map((_, i) => {
-        const s = slope[i];
-        if (i === 0 || !(Number.isNaN(s) || s >= LIMITS.cautionDeg)) return null;
-        return <rect key={i} x={x(distM[i - 1])} y={0} width={Math.max(1, x(distM[i]) - x(distM[i - 1]))} height={H} fill={Number.isNaN(s) || s >= LIMITS.nogoDeg ? '#e5484d66' : '#f5a62366'} />;
-      })}
-      <polyline points={pts} fill="none" stroke="#3cdcff" strokeWidth="1.8" pathLength={1} className="mr-draw" />
-      <text x="3" y="11" className="mr-svgtext">{Math.round(hi)} m</text>
-      <text x="3" y={H - 3} className="mr-svgtext">{Math.round(lo)} m</text>
-      <text x={W - 3} y={H - 3} textAnchor="end" className="mr-svgtext">{fmtKm(total)}</text>
+      <polyline points={pts} fill="none" stroke={EARTH_BLUE} strokeWidth="1.8" strokeLinejoin="round" pathLength={1} className="mr-draw" />
+      <path d={`M${L},${T} V${H - B} H${W - R}`} fill="none" stroke="#000" strokeWidth="1" />
+      <text x={L - 3} y={T + 7} textAnchor="end" className="mr-svgtext">{Math.round(hi)} m</text>
+      <text x={L - 3} y={H - B} textAnchor="end" className="mr-svgtext">{Math.round(lo)} m</text>
+      <text x={L} y={H - 2} className="mr-svgtext">0</text>
+      <text x={W - R} y={H - 2} textAnchor="end" className="mr-svgtext">{fmtKm(total)}</text>
     </svg>
   );
 }
@@ -136,31 +136,21 @@ export function MissionReport({ site, route, onClose }: { site: Site; route: Rou
 
       {view && r && stats && source && (
         <div className="mr-body" key={replay}>
-          <div className="mr-sec" style={section(0)}>
-            <h2 className="mr-title">Mission report</h2>
-            <p className="mr-route">{name}</p>
-            <p className="mr-muted">{isTraverse ? `${site.rover}'s own route, as driven` : 'Safest route, as planned in Solmap'} · {site.name}</p>
+          <div className="mr-sec mr-top" style={section(0)}>
+            <div className="mr-top-text">
+              <h2 className="mr-title">Mission report</h2>
+              <p className="mr-route">{name}</p>
+              <p className="mr-muted">{isTraverse ? `${site.rover}'s own route, as driven` : 'Safest route, as planned in Solmap'} · {site.name}</p>
+            </div>
+            {/* Title block, like the corner box of a technical drawing. */}
             <div className="mr-crew">
-              <label>Mission <input value={mission} onChange={(e) => setMission(e.target.value)} aria-label="Mission name" /></label>
-              <label>Crew <input value={crew} onChange={(e) => setCrew(e.target.value)} aria-label="Crew member" /></label>
+              <label><span>Mission</span><input value={mission} onChange={(e) => setMission(e.target.value)} aria-label="Mission name" /></label>
+              <label><span>Crew</span><input value={crew} onChange={(e) => setCrew(e.target.value)} aria-label="Crew member" /></label>
             </div>
           </div>
 
           <div className="mr-cols">
           <div className="mr-col">
-          <div className="mr-sec mr-points" style={section(1)}>
-            <div>
-              <h3>Start</h3>
-              <p className="mr-big">{view.sLabel ?? 'Start point'}</p>
-              <p className="mr-muted">{formatLatLon(view.start[1], view.start[0], 4)}<br />{Math.round(r.profile.z[0])} m elevation</p>
-            </div>
-            <div>
-              <h3>Destination</h3>
-              <p className="mr-big">{view.eLabel ?? 'End point'}</p>
-              <p className="mr-muted">{formatLatLon(view.end[1], view.end[0], 4)}<br />{Math.round(r.profile.z[r.profile.z.length - 1])} m elevation</p>
-            </div>
-          </div>
-
           <div className="mr-sec mr-map-sec" style={section(2)}>
             <MiniMap route={r} samples={stats.samplesNearList} />
           </div>
@@ -201,8 +191,8 @@ export function MissionReport({ site, route, onClose }: { site: Site; route: Rou
             {stats.losPct !== null && <p className="mr-muted">Radio line of sight to base: {Math.round(stats.losPct)}% of the route.</p>}
           </div>
 
-          <div className="mr-sec" style={section(6)}>
-            <h3>Minerals</h3>
+          <details className="mr-sec mr-fold" style={section(6)}>
+            <summary><h3>Minerals found</h3><span className="mr-count">{minerals.length}</span></summary>
             {!site.files.minerals ? (
               <p>No mineral map for {site.short} yet.</p>
             ) : minerals.length === 0 ? (
@@ -214,10 +204,10 @@ export function MissionReport({ site, route, onClose }: { site: Site; route: Rou
                 ))}
               </ul>
             )}
-          </div>
+          </details>
 
-          <div className="mr-sec" style={section(7)}>
-            <h3>Samples</h3>
+          <details className="mr-sec mr-fold" style={section(7)}>
+            <summary><h3>Samples found</h3><span className="mr-count">{stats.samplesNearList.length}</span></summary>
             {!site.files.samples ? (
               <p>No sample data for {site.short}.</p>
             ) : stats.samplesNearList.length === 0 ? (
@@ -229,7 +219,7 @@ export function MissionReport({ site, route, onClose }: { site: Site; route: Rou
                 ))}
               </ul>
             )}
-          </div>
+          </details>
 
           </div>
           </div>
@@ -238,8 +228,8 @@ export function MissionReport({ site, route, onClose }: { site: Site; route: Rou
             Illustrative crew and mission. Terrain: 20 m model; slope bands ({LIMITS.cautionDeg}°/{LIMITS.nogoDeg}°), walking time at {ASSUMPTIONS.walkSpeedKmh} km/h and oxygen ({OXYGEN.tankHours} h tank) are our assumptions. Minerals: CRISM (NASA MRO), derived map, within {MINERAL_NEAR_M} m.
           </p>
           <div className="mr-actions">
-            <button className="btn" onClick={() => setReplay((n) => n + 1)}>Replay</button>
-            <button className="btn" onClick={onClose}>Close</button>
+            <button className="mr-btn" onClick={() => setReplay((n) => n + 1)}>Replay</button>
+            <button className="mr-btn mr-btn-main" onClick={onClose}>Close</button>
           </div>
         </div>
       )}
