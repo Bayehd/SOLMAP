@@ -158,17 +158,18 @@ function Stats({ safest, direct, env }: { safest: RouteResult | null; direct: Ro
   );
 }
 
-export function RoutePanel({ planner, site }: { planner: RoutePlanner; site: Site }) {
-  const [open, setOpen] = useState(false);
+/** The safest-route panel; it opens from the Route button next to ▶. */
+export function RoutePanel({ planner, site, open }: { planner: RoutePlanner; site: Site; open: boolean }) {
   const env = useEnvironment(site);
   const labels = weightLabels(site, !!env);
   const { picking, setPicking, start, end, weights, setWeights, plan, status, notice, clear } = planner;
   const fmtPt = (p: { lon: number; lat: number } | null) => (p ? `${p.lat.toFixed(4)}° N, ${p.lon.toFixed(4)}° E` : 'not set');
   const sci = plan?.safest?.stats;
 
+  if (!open) return null;
   return (
-    <div className="route-panel panel" data-open={open}>
-      <button className="panel-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>Safest route</button>
+    <div className="route-panel panel" data-open={open} id="route-panel">
+      <h2 className="rp-title">Safest route</h2>
       {open && (
         <div className="rp-body">
           <p className="muted small">Pick a start and an end point inside the {site.short} area. The route avoids slopes of {LIMITS.nogoDeg}° or more and ground with no data.</p>

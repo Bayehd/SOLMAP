@@ -46,17 +46,17 @@ npm run build
 
 | Layer | Source | Resolution | Kind |
 |---|---|---|---|
-| Viking color mosaic (MDIM 2.1) | USGS / NASA Ames, hosted by Esri | 232 m/px | data |
-| CTX image mosaic (Mars color) | Murray Lab, Caltech (MRO CTX), colored with the Viking MDIM 2.1 mosaic, hosted by Esri | ~5 m/px | derived |
-| SOLMAP model texture | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
-| Crater model texture (Jezero) | `public/models/jezero-crater-texture.jpg`, the texture of "Jezero Crater (Mars)" by Gaia (artist model, not NASA data), placed by matching the model's heights to the USGS DTM (RMS 17 m), shown over the 20 m DTM area only; from close up, CTX detail is blended in | ~84 m/px | artistic |
+| Mars color (Viking MDIM 2.1 mosaic) | USGS / NASA Ames, hosted by Esri | 232 m/px | data |
+| Satellite photos (CTX image mosaic) | Murray Lab, Caltech (MRO CTX), colored with the Viking MDIM 2.1 mosaic, hosted by Esri | ~5 m/px | derived |
+| Painted Mars (SOLMAP model texture) | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
+| Realistic crater (Jezero crater model texture) | `public/models/jezero-crater-texture.jpg`, the texture of "Jezero Crater (Mars)" by Gaia (artist model, not NASA data), placed by matching the model's heights to the USGS DTM (RMS 17 m), shown over the 20 m DTM area only; from close up, CTX detail is blended in | ~84 m/px | artistic |
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
 | Jezero minerals (off by default) | NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node), 4 observations from 2007 | 18 m/px, smoothed to ~90 m | derived |
 | Perseverance traverse | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
 | Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions; in the Rover view, drawn with a 3D sample tube model | 28 sealed samples, to sol 1441 | data |
-| Three Forks sample depot | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
+| Sample depot (Three Forks) | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
 | Gale elevation | USGS Astrogeology MSL Gale merged DEM (HiRISE + CTX stereo, 1 m), read from its 16 m overview and averaged to 20 m | 20 m/px | data |
 | Gale slope hazard | Derived from that DEM (Horn method) | 20 m/px | derived |
 | Curiosity traverse | NASA/JPL MSL MMGIS, to sol 5073 | per drive | data |
