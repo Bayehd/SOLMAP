@@ -1,0 +1,106 @@
+:root { --brown:#7a3c06; --white:#fff; }
+html, body { background:#c4621a; }
+.reveal { font-family:'Overpass',sans-serif; color:var(--white); font-size:36px; }
+.reveal .slides { text-align:left; }
+.reveal section { height:1080px; width:1920px; }
+.reveal h1, .reveal h2, .reveal h3 { font-family:'Rajdhani',sans-serif; color:#fff; text-transform:none; margin:0 0 20px; letter-spacing:1px; text-shadow:none; }
+.reveal h1.big { font-size:170px; line-height:.95; margin-bottom:40px; }
+.reveal h2 { font-size:84px; line-height:1.05; }
+.reveal h2.huge { font-size:140px; }
+.reveal h3 { font-size:42px; line-height:1.25; }
+.reveal p { margin:0 0 16px; line-height:1.35; }
+.reveal .center { text-align:center; }
+.reveal .right { text-align:right; }
+.abs { position:absolute; }
+.reveal img { margin:0; max-width:none; max-height:none; }
+
+.icon { width:200px; height:110px; border-radius:50%; background:var(--brown); display:flex; align-items:center; justify-content:center; font-size:56px; margin-bottom:30px; flex:none; }
+.bubble { background:#fff; color:#000; font-family:Arial,sans-serif; font-size:34px; padding:22px 50px; border-radius:50%; text-align:center; }
+.bubble::after { content:""; position:absolute; left:28px; bottom:-14px; border:16px solid transparent; border-top-color:#fff; border-left:0; transform:rotate(20deg); }
+.tear { position:absolute; width:34px; animation:drip 1.6s ease-in infinite; }
+.tear.t2 { animation-delay:.8s; }
+@keyframes drip { 0%{transform:translateY(0);opacity:0} 15%{opacity:1} 100%{transform:translateY(90px);opacity:0} }
+
+.list .row { display:flex; align-items:center; height:185px; }
+.list .num { background:var(--brown); border-radius:50%; width:180px; height:110px; display:flex; align-items:center; justify-content:center; font:700 72px 'Rajdhani'; }
+.list .line { width:90px; height:3px; background:#fff; margin:0 20px 0 0; }
+.list b { font:700 58px 'Rajdhani'; width:930px; }
+.list em { font-style:normal; font-size:34px; width:420px; }
+
+.feats .feat { display:flex; gap:60px; align-items:flex-start; margin-bottom:60px; }
+.feats .icon { width:170px; height:120px; margin:0; }
+.feats h3 { font-size:72px; margin-bottom:6px; }
+.feats p { font-size:34px; }
+
+table.cmp { border-collapse:collapse; font-size:36px; }
+table.cmp th, table.cmp td { padding:30px 60px; border:3px solid #fff; vertical-align:middle; text-align:left; }
+table.cmp tr:first-child th { border-top:0; font:700 60px 'Rajdhani'; }
+table.cmp tr th:first-child { text-align:right; border-left:0; font:700 60px 'Rajdhani'; width:390px; }
+table.cmp tr td:last-child, table.cmp tr th:last-child { border-right:0; }
+table.cmp tr:last-child th, table.cmp tr:last-child td { border-bottom:0; }
+
+.arc { width:1200px; height:1200px; border:3px solid #fff; border-radius:50%; clip-path:inset(0 0 0 50%); }
+.method { display:flex; align-items:center; gap:40px; width:1380px; font-size:32px; }
+.method .icon { width:170px; height:120px; margin:0; }
+
+.tl-line { height:3px; background:#fff; }
+.timeline { display:flex; justify-content:space-between; }
+.tl { width:400px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.tl .icon { width:180px; height:110px; margin:0; }
+.tl .stem { width:3px; height:75px; background:#fff; }
+.tl .num { background:var(--brown); border-radius:50%; width:180px; height:110px; display:flex; align-items:center; justify-content:center; font:700 72px 'Rajdhani'; margin-bottom:60px; }
+.tl h3 { font-size:58px; margin:0; } .tl p { font-size:34px; }
+
+.chart { display:flex; align-items:flex-end; gap:30px; border-bottom:3px solid #555; background:repeating-linear-gradient(to top,transparent 0 178px,rgba(255,255,255,.6) 178px 180px); }
+.chart .bar { flex:1; background:#fff; height:calc(var(--h) / 6 * 100%); position:relative; transform-origin:bottom; }
+.chart .bar i { position:absolute; bottom:-46px; left:50%; transform:translateX(-50%); font-size:22px; font-style:normal; color:#eee; }
+.dot { width:60px; height:60px; border-radius:50%; background:#fff; margin-bottom:60px; }
+.sun { width:720px; height:720px; border-radius:50%; overflow:hidden; background:#000; }
+.sun img { width:100%; height:100%; object-fit:cover; }
+
+/* ---------- entrance animations, replayed every time a slide becomes present ---------- */
+.reveal section .in-left, .reveal section .in-right, .reveal section .in-up, .reveal section .in-down,
+.reveal section .zoom, .reveal section .pop, .reveal section .spin-in, .reveal section .draw, .reveal section .draw-x, .reveal section .chart .bar { opacity:0; }
+.reveal section.present .in-left  { animation:inLeft .9s cubic-bezier(.2,.8,.2,1) both; }
+.reveal section.present .in-right { animation:inRight .9s cubic-bezier(.2,.8,.2,1) both; }
+.reveal section.present .in-up    { animation:inUp .9s cubic-bezier(.2,.8,.2,1) both; }
+.reveal section.present .in-down  { animation:inDown .9s cubic-bezier(.2,.8,.2,1) both; }
+.reveal section.present .zoom     { animation:zoomIn 1s cubic-bezier(.2,.8,.2,1) both; }
+.reveal section.present .pop      { animation:pop .7s cubic-bezier(.3,1.6,.5,1) both; }
+.reveal section.present .spin-in  { animation:spinIn 1.4s cubic-bezier(.2,.8,.2,1) both; }
+.reveal section.present .draw     { animation:draw 1.4s ease-out both; }
+.reveal section.present .draw-x   { animation:drawX 1.2s ease-out .2s both; transform-origin:left; }
+.reveal section.present .chart .bar { animation:grow 1s cubic-bezier(.2,.8,.2,1) both; }
+.reveal section.present .chart .bar:nth-child(n) { animation-delay:calc(var(--i,0) * .1s + .3s); }
+.reveal section.present .d1 { animation-delay:.15s; } .reveal section.present .d2 { animation-delay:.35s; }
+.reveal section.present .d3 { animation-delay:.55s; } .reveal section.present .d4 { animation-delay:.75s; }
+.reveal section.present .d5 { animation-delay:1.1s; }
+@keyframes inLeft  { from{opacity:0;transform:translateX(-160px)} to{opacity:1;transform:none} }
+@keyframes inRight { from{opacity:0;transform:translateX(160px)} to{opacity:1;transform:none} }
+@keyframes inUp    { from{opacity:0;transform:translateY(120px)} to{opacity:1;transform:none} }
+@keyframes inDown  { from{opacity:0;transform:translateY(-120px)} to{opacity:1;transform:none} }
+@keyframes zoomIn  { from{opacity:0;transform:scale(.6)} to{opacity:1;transform:none} }
+@keyframes pop     { from{opacity:0;transform:scale(.2)} to{opacity:1;transform:none} }
+@keyframes spinIn  { from{opacity:0;transform:rotate(-120deg) scale(.4)} to{opacity:1;transform:none} }
+@keyframes draw    { from{opacity:0;clip-path:inset(0 0 100% 50%)} to{opacity:1;clip-path:inset(0 0 0 50%)} }
+@keyframes drawX   { from{opacity:1;transform:scaleX(0)} to{opacity:1;transform:scaleX(1)} }
+@keyframes grow    { from{opacity:1;transform:scaleY(0)} to{opacity:1;transform:scaleY(1)} }
+
+/* ---------- rocket launch ---------- */
+.launcher { will-change:transform; transition:none; }
+.reveal section.present .launcher.idle { animation:hover 3s ease-in-out infinite; }
+.launcher.launching { animation:launch 2.2s cubic-bezier(.55,0,.8,.4) forwards !important; }
+.launcher.fly.launching { animation:flyAway 2s cubic-bezier(.55,0,.8,.4) forwards !important; }
+.launcher.gone { opacity:0; }
+@keyframes hover { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+@keyframes launch {
+  0%{transform:translate(0,0)} 4%{transform:translate(-4px,2px)} 8%{transform:translate(4px,-2px)}
+  12%{transform:translate(-4px,0)} 16%{transform:translate(3px,-6px)} 22%{transform:translate(-2px,-20px)}
+  100%{transform:translate(0,-1500px)}
+}
+@keyframes flyAway {
+  0%{transform:translate(0,0) rotate(0)} 15%{transform:translate(-10px,6px) rotate(-3deg)}
+  100%{transform:translate(1700px,-1300px) rotate(-18deg)}
+}
+
+#smoke { position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:40; }
