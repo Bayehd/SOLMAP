@@ -271,7 +271,7 @@ export function layersFor(site: Site): LayerDef[] {
       kind: 'derived',
       resolution: 'patches of 0.01 km² or more, within 1.5 km of the route',
       description:
-        'The main patches of each mineral in the CRISM mineral map near the rover\'s route, a few per mineral. Click a point for what the mineral tells. ' +
+        'The main patches of each mineral in the CRISM mineral map near the rover\'s route, a few per mineral. ' +
         'Indicative, like the mineral map (scripts/build_jezero_mineral_spots.py).',
       source: { name: 'Derived from the CRISM mineral map', url: 'https://pds-geosciences.wustl.edu/missions/mro/crism.htm' },
       legend: [{ color: rgb(SPOT_COLOR), label: 'Mineral spot' }],
@@ -318,7 +318,7 @@ export function layersFor(site: Site): LayerDef[] {
       visible: true,
       kind: 'data',
       resolution: '28 sealed samples, to sol 1441',
-      description: 'Where Perseverance sealed each of its samples, placed at the rover position on that sol. Click a point for its name.',
+      description: 'Where Perseverance sealed each of its samples, placed at the rover position on that sol.',
       source: { name: 'NASA Mars 2020 rock sample list + MMGIS rover positions', url: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/' },
       legend: SAMPLE_KINDS.map((k) => ({ color: `rgb(${k.color.join(',')})`, label: k.label })),
       create: () =>
@@ -351,7 +351,7 @@ export function layersFor(site: Site): LayerDef[] {
       kind: 'data',
       resolution: '10 tubes, dropped sols 653–690',
       description:
-        'The 10 sample tubes Perseverance left on the ground for a future return mission, at the rover position of each drop. Click a point for its name.',
+        'The 10 sample tubes Perseverance left on the ground for a future return mission, at the rover position of each drop.',
       source: {
         name: 'NASA PDS Geosciences Node, Mars 2020 Three Forks depot',
         url: 'https://pds-geosciences.wustl.edu/missions/mars2020/three_forks_depot.htm',
@@ -380,7 +380,7 @@ export function layersFor(site: Site): LayerDef[] {
       kind: 'data',
       resolution: '1,317 rover stops, sols 3–4843 (2012–2026)',
       description:
-        `Radiation dose ${rover} measured at the surface at each place it stopped: the daily absorbed dose in silicon, averaged over the sols spent there. It rises and falls with the 11-year solar cycle (the Sun's activity shields Mars from galactic cosmic rays). Click a point for its values.`,
+        `Radiation dose ${rover} measured at the surface at each place it stopped: the daily absorbed dose in silicon, averaged over the sols spent there. It rises and falls with the 11-year solar cycle (the Sun's activity shields Mars from galactic cosmic rays).`,
       source: { name: 'NASA PDS PPI Node, MSL RAD RDR + MSL MMGIS rover positions', url: 'https://pds.nasa.gov/ds-view/pds/viewDataset.jsp?dsid=MSL-M-RAD-3-RDR-V1.0' },
       legend: RAD_STOPS.map((s) => ({ color: `rgb(${s.color.join(',')})`, label: `${s.value} µGy/day` })),
       create: () =>

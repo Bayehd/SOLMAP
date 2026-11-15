@@ -15,7 +15,7 @@ import { useRoutePlanner } from '../route/useRoutePlanner';
 import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSampleTubes } from './sampleTubes';
-import { MINERAL_BOARD_W_M, MINERAL_NOTES, SPOT_COLOR, createMineralPins, type MineralSpot } from './mineralSpots';
+import { MINERAL_BOARD_W_M, createMineralPins } from './mineralSpots';
 import { createSiteElevationLayer } from './SiteElevationLayer';
 import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
 import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
@@ -31,10 +31,6 @@ type Probe = {
   slope: number | null; // degrees
   global: number | null; // m, MOLA 463 m
   mineral: number | null; // MINERAL_CLASSES index + 1, 0 = none
-  sample: { number: number; name: string; kind: string; sol: number } | null; // clicked sample point
-  depot: { name: string; sol: number } | null; // clicked depot tube
-  rad: { sol_start: number; sol_end: number; sols_measured: number; dose_si: number; dose_plastic: number | null } | null; // clicked RAD stop
-  spot: MineralSpot | null; // clicked mineral spot or pin
 };
 
 const initialVisibility = (defs: LayerDef[]) => Object.fromEntries(defs.map((l) => [l.id, l.visible]));
@@ -137,7 +133,8 @@ export function MapApp({
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [infoId, setInfoId] = useState<string | null>(null); // the layer whose source card is open
-  const [routeOpen, setRouteOpen] = useState(false); // the safest-route panel, from the Route button // the layer list opens from the layers icon
+  const [routeOpen, setRouteOpen] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false); // the 3D models' credits, from the © button // the safest-route panel, from the Route button // the layer list opens from the layers icon
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
   const [riding, setRiding] = useState(false); // in the Rover view, on the rover (after the camera has flown down)
   // Rover view, camera off the rover: a board is up, or the view was moved by hand. The camera stays where it is (no
@@ -274,19 +271,8 @@ export function MapApp({
       };
       const pointHits = view
         .hitTest(event, { include: [layers['samples'], layers['depot'], layers['radiation'], layers['mineral-spots']].filter(Boolean) })
-        .then((h) => {
-          const attrs = (id: string) => {
-            for (const r of h.results) if (r.type === 'graphic' && r.layer === layers[id]) return r.graphic.attributes;
-            return null;
-          };
-          return {
-            sample: attrs('samples') as Probe['sample'],
-            depot: attrs('depot') as Probe['depot'],
-            rad: attrs('radiation') as Probe['rad'],
-            spot: attrs('mineral-spots') as Probe['spot'],
-          };
-        })
-        .catch(() => ({ sample: null, depot: null, rad: null, spot: null }));
+        .then((h) => h.results.some((r) => r.type === 'graphic')) // clicked a point
+        .catch(() => false);
       // In the map views, a click on the rover's route (not on a point on it) moves the rover there; ▶ drives on from there.
       const rover = roverRef.current;
       const onRoute = rover && showRoverRef.current && cameraViewRef.current !== 'rover' ? rover.nearestOnRoute(point.x, point.y) : null;
@@ -297,8 +283,7 @@ export function MapApp({
           ? Math.hypot(((side.longitude ?? side.x) - point.x) * METERS_PER_DEGREE * Math.cos((point.y * Math.PI) / 180), ((side.latitude ?? side.y) - point.y) * METERS_PER_DEGREE)
           : 0;
         if (onRoute.offM <= Math.max(ROUTE_CLICK_MIN_M, m)) {
-          const h = await pointHits;
-          if (!(h.sample || h.depot || h.rad || h.spot)) {
+          if (!(await pointHits)) {
             rover.jumpTo(onRoute.distM);
             tubes.clearBoard();
             setBoardUp(false);
@@ -307,7 +292,12 @@ export function MapApp({
           }
         }
       }
-      const [dtm, slope, mineral, global, hits] = await Promise.all([
+      // A click on a point (sample, depot tube, RAD stop, mineral spot) shows no info box.
+      if (await pointHits) {
+        setProbe(null);
+        return;
+      }
+      const [dtm, slope, mineral, global] = await Promise.all([
         pixel('elevation'),
         pixel('slope'),
         pixel('minerals'),
@@ -315,9 +305,8 @@ export function MapApp({
           .queryElevation(point)
           .then((r) => ((r.geometry as Point).z ?? null))
           .catch(() => null),
-        pointHits,
       ]);
-      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm && layers['minerals'] ? (mineral ?? 0) : null, ...hits });
+      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm && layers['minerals'] ? (mineral ?? 0) : null });
     });
 
     return () => {
@@ -649,10 +638,23 @@ export function MapApp({
             </button>
           ))}
         </div>
+        {(showRover || textureShown) && (
+          <button
+            className="credits-btn"
+            aria-expanded={creditsOpen}
+            aria-controls="model-credits"
+            aria-label="Credits"
+            title="Credits"
+            onClick={() => setCreditsOpen((o) => !o)}
+          >
+            ©
+          </button>
+        )}
       </div>
 
-      {(showRover || textureShown) && (
-        <p className="rover-credit">
+      {/* The CC BY 4.0 models must be credited where they are shown: behind the © button. */}
+      {(showRover || textureShown) && creditsOpen && (
+        <p className="rover-credit" id="model-credits">
           {textureShown && site.texture && (
             <>
               Terrain texture:{' '}
@@ -757,47 +759,7 @@ export function MapApp({
           <button className="close" aria-label="Close" onClick={() => setProbe(null)}>
             ×
           </button>
-          {probe.spot && (
-            <div className="probe-spot">
-              <h3>
-                <span className="swatch" style={{ background: `rgb(${SPOT_COLOR.join(',')})` }} /> {probe.spot.mineral}
-              </h3>
-              <p>{MINERAL_NOTES[probe.spot.mineral]}</p>
-              <p className="muted small">
-                Seen from orbit by CRISM: a {probe.spot.area_km2 < 0.1 ? `${Math.round(probe.spot.area_km2 * 1e6).toLocaleString()} m²` : `${probe.spot.area_km2.toFixed(2)} km²`} patch,{' '}
-                {probe.spot.route_dist_m < 50 ? 'on the rover\'s route' : `${probe.spot.route_dist_m.toLocaleString()} m from the rover's route`}. Indicative only.
-              </p>
-            </div>
-          )}
-          {probe.dtm !== null || probe.global !== null || !probe.spot ? (
           <dl>
-            {probe.sample && (
-              <>
-                <dt>Sample</dt>
-                <dd>
-                  #{probe.sample.number} {probe.sample.name} ({probe.sample.kind.toLowerCase()}, sealed sol {probe.sample.sol})
-                </dd>
-              </>
-            )}
-            {probe.depot && (
-              <>
-                <dt>Depot tube</dt>
-                <dd>
-                  {probe.depot.name} (dropped sol {probe.depot.sol})
-                </dd>
-              </>
-            )}
-            {probe.rad && (
-              <>
-                <dt>Radiation</dt>
-                <dd>
-                  {probe.rad.dose_si.toFixed(0)} µGy/day in silicon
-                  {probe.rad.dose_plastic !== null && `, ${probe.rad.dose_plastic.toFixed(0)} tissue-equivalent`}
-                  <br />
-                  sols {probe.rad.sol_start}–{probe.rad.sol_end} ({probe.rad.sols_measured} measured)
-                </dd>
-              </>
-            )}
             <dt>Position</dt>
             <dd>
               {formatLatLon(probe.lat, probe.lon, 5)}
@@ -825,7 +787,6 @@ export function MapApp({
             <dt>Elevation (MOLA, 463 m)</dt>
             <dd>{probe.global === null ? '–' : `${probe.global.toFixed(0)} m`}</dd>
           </dl>
-          ) : null}
         </div>
       )}
     </div>
