@@ -84,18 +84,19 @@ export function useRoutePlanner(routeLayer: GraphicsLayer, layers: Record<string
       if (plan.safest) {
         const line = new Polyline({ paths: [plan.safest.path], spatialReference: sr });
         add(new Graphic({ geometry: line, symbol: { type: 'simple-line', color: [0, 0, 0, 0.8], width: 7 } as never }));
-        add(new Graphic({ geometry: line, symbol: { type: 'simple-line', color: [60, 220, 255, 1], width: 4 } as never }));
+        add(new Graphic({ geometry: line, symbol: { type: 'simple-line', color: [255, 255, 255, 1], width: 4 } as never }));
       }
     }
-    const dot = (p: LonLat | null, color: number[]) => {
+    // Same colors as the Start / End fields in the route panel: start white, end Mars red.
+    const dot = (p: LonLat | null, color: number[], outline: number[]) => {
       if (!p) return;
       add(new Graphic({
         geometry: new Point({ x: p.lon, y: p.lat, spatialReference: sr }),
-        symbol: { type: 'simple-marker', style: 'circle', size: 12, color, outline: { color: [255, 255, 255], width: 2 } } as never,
+        symbol: { type: 'simple-marker', style: 'circle', size: 12, color, outline: { color: outline, width: 2 } } as never,
       }));
     };
-    dot(start, [60, 200, 90]);
-    dot(end, [240, 70, 70]);
+    dot(start, [255, 255, 255], [29, 26, 23]);
+    dot(end, [184, 67, 43], [255, 255, 255]);
   }, [plan, start, end, routeLayer]);
 
   return { picking, setPicking, start, end, weights, setWeights, plan, status, notice, pick, clear, setStart, setEnd };

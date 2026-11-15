@@ -3,7 +3,7 @@
 .map-app .panel { position: absolute; color: var(--text); }
 .map-app .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 8px; }
 .map-app .link { color: var(--accent); }
-.map-app .map-left { position: absolute; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; }
+.map-app .map-left { position: absolute; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 100px); overflow-y: auto; }
 .map-app .map-left .panel { position: static; }
 .map-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .map-toolbar .btn { backdrop-filter: blur(6px); }
@@ -64,60 +64,70 @@
 .panel-toggle[aria-expanded="false"]::after { content: " ▸"; }
 .layers-icon {
   all: unset; box-sizing: border-box; cursor: pointer; display: grid; place-items: center; width: 44px; height: 44px;
-  border-radius: 10px; color: var(--text); background: rgba(40, 40, 44, 0.92); border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px; color: #1d1a17; background: rgba(207, 202, 196, 0.7); border: 1px solid transparent;
   transition: background 0.15s, color 0.15s;
 }
-.layers-icon:hover { background: rgba(58, 58, 63, 0.95); }
-.layers-icon[aria-expanded="true"] { background: #b8432b; border-color: #c9503a; }
+.layers-icon:hover { background: #e4e0db; }
+.layers-icon[aria-expanded="true"] { color: #fff; background: rgba(184, 67, 43, 0.8); border-color: transparent; }
+.layers-icon[aria-expanded="true"]:hover { background: #c9503a; }
 .layers-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.layer-list { margin-top: 8px; padding: 4px 10px 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(4px) brightness(1.15); box-sizing: border-box; max-height: calc(100vh - 300px); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; align-items: flex-end; scrollbar-width: thin; }
 .layer-panel section { margin-top: 10px; width: 100%; display: flex; flex-direction: column; gap: 0; }
-.layer-credits { margin: 10px 0 0; max-width: 280px; font-size: 11px; line-height: 1.5; text-align: right; color: #cfcac4; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
-.layer-credits a { color: inherit; }
+.model-credits {
+  position: absolute; right: 110px; bottom: 1px; z-index: 1; margin: 0; max-width: calc(100vw - 140px); font-size: 9px; line-height: 14px;
+  color: rgba(255, 255, 255, 0.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.model-credits a { color: inherit; }
 .layer-panel h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); text-align: right; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
 .layer-row { padding: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 /* Small round "i" right of the layer name: opens the layer's source card. Transparent, and shown only while the
    pointer is over the row (or the card is open, or it has keyboard focus); always shown on touch screens. */
 .layer-info-btn {
   all: unset; box-sizing: border-box; cursor: pointer; flex: none; display: grid; place-items: center; width: 18px; height: 18px;
-  border-radius: 50%; color: #cfcac4; background: transparent; border: 1px solid rgba(255, 255, 255, 0.45);
-  filter: drop-shadow(0 1px 2px #000);
+  border-radius: 50%; color: #3a3430; background: transparent; border: 1px solid rgba(58, 52, 48, 0.5);
   opacity: 0; transition: opacity 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
 }
 .layer-row:hover .layer-info-btn,
 .layer-info-btn:focus-visible,
 .layer-info-btn[aria-expanded="true"] { opacity: 1; }
 @media (hover: none) { .layer-info-btn { opacity: 1; } }
-.layer-info-btn:hover { color: #fff; border-color: #fff; }
+.layer-info-btn:hover { color: #000; border-color: #000; }
 .layer-info-btn[aria-expanded="true"] { color: #fff; border-color: #c9503a; background: rgba(184, 67, 43, 0.55); }
 .layer-info-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .layer-info {
   flex-basis: 100%; box-sizing: border-box; margin: 0 24px 6px 0; font-size: 10px; line-height: 1.4; text-align: right;
   white-space: nowrap;
-  color: #cfcac4; text-shadow: 0 1px 3px #000, 0 0 8px #000, 0 0 2px #000; /* no box: readable over the map, like the layer names */
+  color: #3a3430; text-shadow: none; /* on the list's light background: readable over the map, like the layer names */
 }
-.layer-info a { color: #fff; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
-.layer-info a:hover { color: #f3d6cf; }
+.layer-info a { color: #1d1a17; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.layer-info a:hover { color: #b8432b; }
 /* While a source line is open, the list widens so the whole source fits on one line. */
 .map-app .map-right:has(.layer-info) { width: min(470px, calc(100vw - 32px)); }
 @media (max-width: 520px) { .layer-info { white-space: normal; } }
-.layer-row label {
-  display: flex; align-items: center; justify-content: flex-end; gap: 8px; cursor: pointer; padding: 3px 2px; font-size: 14px;
-  color: #cfcac4; text-shadow: 0 1px 3px #000, 0 0 8px #000, 0 0 2px #000; text-align: right;
-  transition: color 0.15s;
+/* Layer names: dark grey text on the list's light, see-through grey. On: Mars red-brown; off: see-through. */
+.layer-name {
+  all: unset; box-sizing: border-box; cursor: pointer; padding: 3px 2px; font-size: 14px; text-align: right;
+  color: #3b2418; text-shadow: none; opacity: 0.65; transition: color 0.15s, opacity 0.15s;
 }
-.layer-row label:hover { color: #fff; }
-.layer-row label[data-on="true"] { color: #b8432b; font-weight: 600; } /* Mars red-brown */
-.layer-row label[data-on="true"]:hover { color: #c9503a; }
-.layer-row label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* The box/radio itself is hidden: the whole button shows whether the layer is on. */
-.layer-row input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.layer-name:hover { opacity: 1; color: #2a170e; }
+.layer-name[aria-pressed="true"] { color: #8a321e; font-weight: 600; opacity: 1; }
+.layer-name[aria-pressed="true"]:hover { color: #a33c24; }
+.layer-name:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .layer-detail { padding: 4px 0 4px 24px; display: grid; gap: 4px; }
 .badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--panel-border); color: var(--muted); }
 .badge-derived { color: #8ecae6; border-color: #8ecae655; }
 .badge-artistic { color: #f4a3c0; border-color: #f4a3c055; }
-.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; }
-.legend li { display: flex; align-items: center; gap: 6px; }
+/* A layer's legend, under it in the list: dark text on a white glow, color squares and bars of the same width. */
+.layer-legend { flex-basis: 100%; display: flex; justify-content: flex-end; margin: 2px 26px 8px 0; font-size: 11px; color: #000; text-shadow: none; }
+/* Right-aligned under the layer name: the text, then the color on the right. */
+.layer-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; justify-items: end; }
+.layer-legend li { display: flex; align-items: center; gap: 6px; }
+.legend-swatch { order: 1; flex: none; width: 8px; height: 8px; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.legend-ramp { position: relative; display: flex; flex-direction: row-reverse; gap: 6px; margin: 6px 0; }
+.legend-bar { flex: none; width: 8px; height: 100%; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.legend-ticks { position: relative; width: 150px; }
+.legend-ticks span { position: absolute; right: 0; transform: translateY(50%); white-space: nowrap; line-height: 1; }
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(255, 255, 255, 0.3); vertical-align: -2px; }
 .map-app .probe { left: 50%; transform: translateX(-50%); bottom: 32px; min-width: 260px; padding-right: 32px; }
 .probe dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
@@ -147,23 +157,60 @@
 .route-panel .rp-title { margin: 0; font-size: 14px; font-weight: 600; }
 .route-panel .rp-body { margin-top: 8px; display: grid; gap: 8px; }
 .route-panel h3 { margin: 6px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-.rp-points { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
-.rp-clear { justify-self: start; }
 .rp-warn { color: #f5a623; margin: 0; }
 .rp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .rp-table th { text-align: left; font-weight: 600; padding: 2px 4px; }
 .rp-table td { padding: 3px 4px; border-top: 1px solid var(--panel-border); }
 .rp-table td:first-child { color: var(--muted); }
-.rp-key { display: inline-block; width: 14px; height: 0; border-top: 3px solid #3cdcff; margin-right: 5px; vertical-align: middle; }
-.rp-key-direct { border-top: 2px dashed #ccc; }
+.rp-key { display: inline-block; width: 14px; height: 0; border-top: 3px solid #fff; margin-right: 5px; vertical-align: middle; box-shadow: 0 0 0 1px rgba(29, 26, 23, 0.6); }
+.rp-key-direct { border-top: 2px dashed #4a443d; }
 .rp-profile { width: 100%; background: #0b0b0d; border: 1px solid var(--panel-border); border-radius: 6px; }
 .rp-svgtext { fill: #9a9a9f; font-size: 8px; }
-.rp-slider { display: grid; gap: 2px; font-size: 12px; }
 .rp-assume ul { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; }
-.rp-assume summary { cursor: pointer; font-size: 12px; color: var(--muted); }
-.rp-sliders { display: grid; gap: 8px; margin-top: 8px; }
 
 /* Route panel: what the rover measured at the site (Gale: RAD and REMS). */
 .rp-measured { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; margin: 6px 0; }
 .rp-measured dt { color: var(--muted); }
 .rp-measured dd { margin: 0; }
+
+/* Route panel: the light grey of the buttons and layer icon, more see-through, with dark text. */
+.map-app .route-panel {
+  --text: #1d1a17; --muted: #4a443d; --accent: #8a2f1c; --panel-border: rgba(29, 26, 23, 0.16);
+  color: var(--text); background: rgba(207, 202, 196, 0.35); border-color: rgba(255, 255, 255, 0.25); backdrop-filter: blur(10px);
+}
+.route-panel .rp-warn { color: #8a4b00; }
+/* Start and end side by side, like a maps app. */
+.rp-points { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.rp-point {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.35); border: 1px solid rgba(29, 26, 23, 0.12);
+}
+.rp-point:hover { background: rgba(255, 255, 255, 0.55); }
+.rp-point:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rp-point[aria-pressed="true"] { border-color: #b8432b; background: rgba(184, 67, 43, 0.18); }
+.rp-point-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #fff; border: 2px solid #1d1a17; }
+.rp-point[data-which="end"] .rp-point-dot { background: #b8432b; border-color: #fff; }
+.rp-point-text { display: grid; min-width: 0; }
+.rp-point-label { font-size: 11px; color: var(--muted); }
+.rp-point-value { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-clear { all: unset; cursor: pointer; justify-self: end; font-size: 11px; color: var(--muted); margin-top: -4px; }
+.rp-clear:hover { color: var(--text); }
+.rp-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Filters: sliders drawn like the red route-driven bar. */
+.rp-filters { display: grid; gap: 7px; }
+.rp-slider { display: grid; gap: 3px; font-size: 12px; }
+.rp-slider input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px; margin: 4px 0; border-radius: 2px; cursor: pointer;
+  background: linear-gradient(to right, #b8432b var(--pct, 0%), rgba(29, 26, 23, 0.18) var(--pct, 0%));
+}
+.rp-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #b8432b; border: none; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.rp-slider input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #b8432b; border: none; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.rp-slider input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Measured and assumptions: small, folded extra info at the bottom. */
+.rp-assume summary { cursor: pointer; font-size: 11px; color: var(--muted); }
+.rp-assume ul, .rp-assume .small { font-size: 11px; }
+/* Elevation profile: no background, black axes, red line. */
+.rp-elev { width: 100%; display: block; overflow: visible; }
+.rp-elev-text { fill: #000; font-size: 8px; }
