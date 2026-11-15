@@ -90,6 +90,10 @@ const TAKEOFF_CAM_UP_M = 25; // Rover view take-off: the camera pulls back to th
 const TAKEOFF_TILT = 62; // ...looking down at it at this tilt (degrees from straight down)
 const RISE_AHEAD_M = 12; // "Return to Earth" stands on the ground this far past the end of the route
 const PAD_SCORCH = [{ size: 74, alpha: 0.15 }, { size: 52, alpha: 0.2 }, { size: 32, alpha: 0.28 }]; // take-off scorch circle (pt on screen)
+// Taking a sample: the camera watches the tube land on the rover from this far beside and behind it, this high.
+const TAKE_CAM_SIDE_M = 6;
+const TAKE_CAM_BACK_M = 4;
+const TAKE_CAM_UP_M = 3.5;
 const BOARD_FOV = 60; // degrees: a normal lens while a sample board is up, so it isn't stretched (driving restores ROVER_FOV)
 
 
@@ -253,8 +257,30 @@ export function MapApp({
       // Rover view: a click on a sample tube stops the drive, stands its board beside the rover and turns the
       // camera so the board and the tube both show.
       if (cameraViewRef.current === 'rover') {
-        const hit = await view.hitTest(event, { include: [tubes.tubeLayer, minerals.layer] }).catch(() => null);
+        const hit = await view.hitTest(event, { include: [tubes.boardLayer, tubes.tubeLayer, minerals.layer] }).catch(() => null);
         const g = hit?.results.find((r) => r.type === 'graphic');
+        // The "+" on a sample board: take the sample. Its tube flies onto the rover, and the camera turns to watch it land.
+        if (g?.type === 'graphic' && g.graphic.layer === tubes.boardLayer && g.mapPoint && tubes.plusAt(g.mapPoint)) {
+          const rover = roverRef.current;
+          if (!rover) return;
+          void tubes.take(() => rover.pose());
+          const p = rover.pose();
+          const h = (p.travelHeading * Math.PI) / 180;
+          const [fe, fn] = [Math.sin(h), Math.cos(h)]; // forward (east, north)
+          const [re, rn] = [Math.cos(h), -Math.sin(h)]; // right
+          const e = TAKE_CAM_SIDE_M * re - TAKE_CAM_BACK_M * fe;
+          const n = TAKE_CAM_SIDE_M * rn - TAKE_CAM_BACK_M * fn;
+          const mx = METERS_PER_DEGREE * Math.cos((p.lat * Math.PI) / 180);
+          const ground =
+            (view.groundView?.elevationSampler?.queryElevation(new Point({ x: p.lon, y: p.lat, spatialReference: marsSR() })) as Point | null)?.z ??
+            p.groundZ ??
+            site.landingElevationM;
+          const position = new Point({ x: p.lon + e / mx, y: p.lat + n / METERS_PER_DEGREE, z: ground + TAKE_CAM_UP_M, spatialReference: marsSR() });
+          const heading = ((Math.atan2(-e, -n) * 180) / Math.PI + 360) % 360; // toward the rover
+          const tilt = 90 - (Math.atan2(TAKE_CAM_UP_M - 1, Math.hypot(e, n)) * 180) / Math.PI; // looking down at its deck
+          view.goTo(new Camera({ position, heading, tilt, fov: BOARD_FOV }), { duration: 1200, easing: 'cubic-in-out' }).catch(() => {});
+          return;
+        }
         const spot = g && g.type === 'graphic' ? minerals.spotOf(g.graphic) : null;
         if (spot && g?.type === 'graphic') {
           // A mineral pin: like a sample tube, the drive stops and the mineral's (wider) board stands beside the rover.
@@ -394,8 +420,10 @@ export function MapApp({
     rover.setRiding(true);
     const guide = routeGuideUpdater(guideLayer, rover);
     guide(rover.pose().distM);
+    tubes.carry(rover.pose()); // the samples taken ride on the rover
     rover.onMove((p) => {
       guide(p.distM);
+      tubes.carry(p);
       if (!entering && !boardUpRef.current) view.camera = cameraAt(p);
     });
     // Moving the view by hand (drag, wheel, keys) leaves the camera where it is put.
@@ -434,7 +462,7 @@ export function MapApp({
       if (!view.destroyed && view.camera && view.camera.fov !== DEFAULT_FOV && !view.animation) view.camera = normalLens(view.camera);
       clip.mode = 'auto';
     };
-  }, [cameraView, site, guideLayer]);
+  }, [cameraView, site, guideLayer, tubes]);
 
   // Side view: one slab per checked data layer, elevation on top (see layerStack.ts). Framed once on entry.
   const stackIds = defs.filter((l) => STACKABLE.has(l.id) && visibility[l.id]).map((l) => l.id).join(',');

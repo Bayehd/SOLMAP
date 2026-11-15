@@ -19,7 +19,7 @@ import type SceneView from '@arcgis/core/views/SceneView';
 import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
 import { formatLatLon, type Site } from './sites';
 
-const TUBE_LENGTH_M = 3; // the tube model lying on the ground (real: 0.3 m), enlarged so it shows from the mast camera
+const TUBE_LENGTH_M = 0.6; // the tube model lying on the ground (real: 0.3 m), twice that so it shows from the mast camera, still far smaller than the rover (~3 m long)
 const TUBE_ASIDE_M = 6; // from the route to the tube's center, to the right of the direction of travel
 const TUBE_VIEW_DIST_M = 12; // with a board up, the camera is at least this far from the tube, so the tube is in view
 const MAX_LOOK_DOWN_DEG = 20; // with a board up, the camera looks down at most this much from level
@@ -35,6 +35,15 @@ const VIEW_LEFT_DEG = 12; // the camera looks this far left of the tube, so the 
 const BOARD_LEFT_DEG = 13; // the board's center is this far left of where the camera looks
 export const BOARD_PX = 900; // canvas height; width follows the board's shape, so text keeps its size
 const MAP_RADIUS_M = 400; // the board's small map shows this far around the sample
+// The board's "+" (take the sample), a round button in its top-right corner: center and radius in canvas pixels.
+const PLUS_R_PX = 38;
+const plusCenter = (W: number) => [W - 30 - PLUS_R_PX, 30 + PLUS_R_PX] as const;
+// Taken samples ride on the rover's deck.
+const DECK_HEIGHT_M = 1.2; // above the ground
+const DECK_BACK_M = 0.4; // behind the rover's center
+const DECK_SPACING_M = 0.14; // between tubes, side by side across the deck
+const TAKE_MS = 1400; // the tube's flight from the ground to the deck
+const TAKE_ARC_M = 2.5; // how high above the straight line it arcs
 
 export type SampleTube = { number: number; name: string; kind: string; sol: number; lon: number; lat: number };
 type Entry = { image?: string; imageCaption?: string; text?: string };
@@ -101,7 +110,7 @@ export function wrap(ctx: CanvasRenderingContext2D, text: string, width: number)
 }
 
 /** The board's face: title, facts, image, description and a small map, on a dark see-through panel. */
-async function drawBoard(samples: SampleTube[], entries: (Entry | null)[], route: Line[], others: [number, number][]) {
+async function drawBoard(samples: SampleTube[], entries: (Entry | null)[], route: Line[], others: [number, number][], plus: boolean) {
   const H = BOARD_PX;
   const W = Math.round((H * BOARD_W_M) / BOARD_H_M);
   const c = document.createElement('canvas');
@@ -217,6 +226,26 @@ async function drawBoard(samples: SampleTube[], entries: (Entry | null)[], route
   font(18);
   ctx.fillStyle = '#a99f96';
   ctx.fillText(`${(2 * MAP_RADIUS_M) / 1000} km across · north up`, mx0 + 8, top - 20 + mapS - 10);
+
+  // Top right: "+", take the sample (the click is found on the board by plusAt).
+  if (plus) {
+    const [cx, cy] = plusCenter(W);
+    ctx.fillStyle = '#b8432b';
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, PLUS_R_PX, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - PLUS_R_PX * 0.5, cy);
+    ctx.lineTo(cx + PLUS_R_PX * 0.5, cy);
+    ctx.moveTo(cx, cy - PLUS_R_PX * 0.5);
+    ctx.lineTo(cx, cy + PLUS_R_PX * 0.5);
+    ctx.stroke();
+  }
   return c;
 }
 
@@ -274,6 +303,13 @@ export function createSampleTubes(site: Site) {
   let route: Line[] = [];
   let all: SampleTube[] = [];
   const entries = site.files.sampleBoard ? json<{ samples: Record<string, Entry> }>(site.files.sampleBoard) : Promise.resolve(null);
+  // The board up now: where it stands (to find a click on its "+") and the sample stop it is for (null: not a sample board).
+  let frame: { lon: number; lat: number; ground: number; mid: number; right: number[]; up: number[]; hw: number; hh: number } | null = null;
+  let boardStop: number | null = null;
+  const taken: number[] = []; // sample stops whose tube is on the rover, in the order taken
+  let flying: { stop: number; from: Point; t0: number } | null = null;
+  const tubeOf = (k: number) => tubeLayer.graphics.find((g) => g.attributes.stop === k && !g.attributes.pin);
+  const pinOf = (k: number) => tubeLayer.graphics.find((g) => g.attributes.stop === k && !!g.attributes.pin);
 
   /** Place the tubes once the samples and the route have loaded. */
   async function load() {
@@ -309,13 +345,17 @@ export function createSampleTubes(site: Site) {
   async function showBoard(view: SceneView, samples: SampleTube[], eyeHeightM: number) {
     const tube = tubeLayer.graphics.find((g) => stops[g.attributes.stop] === samples)?.geometry as Point | undefined;
     const target = tube ?? new Point({ x: samples[0].lon, y: samples[0].lat, z: 0, spatialReference: marsSR() });
-    return standBoard(view, target, eyeHeightM, BOARD_W_M, () =>
+    const stop = stops.indexOf(samples);
+    const canTake = !taken.includes(stop) && flying?.stop !== stop;
+    const shown = standBoard(view, target, eyeHeightM, BOARD_W_M, () =>
       entries.then((e) => {
         const list = samples.map((s) => e?.samples[String(s.number)] ?? null);
         const others = all.filter((s) => !samples.includes(s)).map((s) => [s.lon, s.lat] as [number, number]);
-        return drawBoard(samples, list, route, others);
+        return drawBoard(samples, list, route, others, canTake);
       }),
     );
+    boardStop = canTake ? stop : null;
+    return shown;
   }
 
   /**
@@ -325,6 +365,7 @@ export function createSampleTubes(site: Site) {
    */
   function standBoard(view: SceneView, target: Point, eyeHeightM: number, widthM: number, face: () => Promise<HTMLCanvasElement>) {
     boardLayer.removeAll();
+    boardStop = null;
     let cam = view.camera.position;
     const at = [target.x, target.y];
     const mx = mPerDegLon(cam.y);
@@ -360,6 +401,7 @@ export function createSampleTubes(site: Site) {
     const mid = BOARD_LIFT_M + hh * Math.cos(a); // center height, so the bottom edge is BOARD_LIFT_M above the ground
     const corner = (x: number, y: number) => [0, 1, 2].map((k) => right[k] * x + up[k] * y + (k === 2 ? mid : 0));
     const corners = [corner(-hw, hh), corner(hw, hh), corner(hw, -hh), corner(-hw, -hh)];
+    frame = { lon, lat, ground, mid, right, up, hw, hh };
     void face().then((canvas) => {
       boardLayer.removeAll(); // a later click may have drawn one meanwhile
       boardLayer.add(new Graphic({ geometry: quad([lon, lat, ground], corners, canvas) }));
@@ -368,7 +410,80 @@ export function createSampleTubes(site: Site) {
     return { position: cam, heading, tilt: 90 - down };
   }
 
-  const clearBoard = () => boardLayer.removeAll();
+  const clearBoard = () => {
+    boardLayer.removeAll();
+    frame = null;
+    boardStop = null;
+  };
 
-  return { tubeLayer, boardLayer, load, samplesOf, showBoard, standBoard, clearBoard };
+  /** Whether a point clicked on the board (its map point) is on the board's "+". */
+  function plusAt(p: Point) {
+    if (!frame || boardStop === null || p.z === undefined || p.z === null) return false;
+    const f = frame;
+    const d = [(p.x - f.lon) * mPerDegLon(f.lat), (p.y - f.lat) * METERS_PER_DEGREE, p.z - f.ground - f.mid];
+    const x = d[0] * f.right[0] + d[1] * f.right[1] + d[2] * f.right[2]; // meters right of the board's center
+    const y = d[0] * f.up[0] + d[1] * f.up[1] + d[2] * f.up[2]; // meters up from it
+    const pxPerM = BOARD_PX / (2 * f.hh);
+    const W = Math.round((BOARD_PX * f.hw) / f.hh);
+    const [cx, cy] = plusCenter(W);
+    const u = (x + f.hw) * pxPerM; // canvas pixels from the left edge
+    const v = (f.hh - y) * pxPerM; // from the top
+    return Math.hypot(u - cx, v - cy) <= PLUS_R_PX * 1.4; // a little slack around the button
+  }
+
+  type Pose = { lon: number; lat: number; travelHeading: number };
+  /** Where the i-th taken tube sits on the rover's deck. */
+  function deckSpot(p: Pose, i: number) {
+    const h = (p.travelHeading * Math.PI) / 180;
+    const across = (i - (taken.length - 1) / 2) * DECK_SPACING_M;
+    const e = -DECK_BACK_M * Math.sin(h) + across * Math.cos(h);
+    const n = -DECK_BACK_M * Math.cos(h) - across * Math.sin(h);
+    return { x: p.lon + e / mPerDegLon(p.lat), y: p.lat + n / METERS_PER_DEGREE, heading: p.travelHeading };
+  }
+
+  /** Put the taken tubes on the rover's deck (call on every rover move). */
+  function carry(p: Pose) {
+    taken.forEach((k, i) => {
+      if (flying?.stop === k) return;
+      const g = tubeOf(k);
+      if (!g) return;
+      const s = deckSpot(p, i);
+      g.geometry = new Point({ x: s.x, y: s.y, z: DECK_HEIGHT_M, spatialReference: marsSR() });
+      g.symbol = tubeSymbol(s.heading);
+    });
+  }
+
+  /**
+   * Take the sample of the board up: its tube flies from the ground onto the rover's deck (pose() is where the rover
+   * is) and rides there from then on; its marker goes. The board comes down. Resolves when the tube has landed.
+   */
+  function take(pose: () => Pose) {
+    const k = boardStop;
+    const g = k === null ? undefined : tubeOf(k);
+    clearBoard();
+    if (k === null || !g) return Promise.resolve(false);
+    const pin = pinOf(k);
+    if (pin) tubeLayer.remove(pin);
+    taken.push(k);
+    flying = { stop: k, from: g.geometry as Point, t0: performance.now() };
+    const fly = flying;
+    return new Promise<boolean>((resolve) => {
+      const step = (now: number) => {
+        const t = Math.min(1, (now - fly.t0) / TAKE_MS);
+        const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2; // ease in and out
+        const to = deckSpot(pose(), taken.indexOf(k));
+        const z = (fly.from.z ?? 0) + (DECK_HEIGHT_M - (fly.from.z ?? 0)) * e + Math.sin(Math.PI * e) * TAKE_ARC_M;
+        g.geometry = new Point({ x: fly.from.x + (to.x - fly.from.x) * e, y: fly.from.y + (to.y - fly.from.y) * e, z, spatialReference: marsSR() });
+        if (t < 1) requestAnimationFrame(step);
+        else {
+          flying = null;
+          carry(pose());
+          resolve(true);
+        }
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  return { tubeLayer, boardLayer, load, samplesOf, showBoard, standBoard, clearBoard, plusAt, take, carry };
 }
