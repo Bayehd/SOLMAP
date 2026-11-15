@@ -150,3 +150,10 @@ table.cmp tr:last-child th, table.cmp tr:last-child td { border-bottom:0; }
 .flag-end { opacity:0; }
 .reveal section.present .flag-end { animation:inUp .8s both 3.4s; }
 .merge span:nth-child(1){background:#7a4a26}.merge span:nth-child(2){background:#444}.merge span:nth-child(3){background:#8a2fb8}.merge span:nth-child(4){background:#1f8fa0}
+
+.ground-text { perspective:900px; perspective-origin:50% 0%; }
+.ground-text h2 { text-align:center; white-space:nowrap; font-size:165px; line-height:1; margin:0; padding-top:120px; transform-origin:50% 100%;
+  transform:rotateX(58deg); color:#fff6ec;
+  text-shadow:0 2px 0 #e8d6c4,0 4px 0 #d9bfa6,0 6px 0 #c9a688,0 8px 0 #b48a69,0 10px 0 #9a6f4f,0 30px 30px rgba(60,20,0,.55); }
+.reveal section.present .ground-text h2 { animation:settle 1.6s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes settle { from{opacity:0;transform:rotateX(0deg) translateY(-300px) scale(.8)} 70%{opacity:1} to{opacity:1;transform:rotateX(58deg)} }
