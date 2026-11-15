@@ -42,12 +42,12 @@ const LIFT = 0.08; // bottom of the stack above the highest ground
 const TEX_PX = 1536; // slab texture size (~20 m/px)
 const RASTER_PX = 768; // data raster samples per side (~40 m)
 const RELIEF_STEP = 6; // relief mesh = every 6th raster sample (128 × 128)
-const SIDE_COLOR = [70, 76, 92];
+const SIDE_COLOR = [150, 156, 170, 0.35]; // slab edges, light and see-through
 const NO_MAP_COLOR = '#2a2f3a'; // under the base map, where it has no tiles
 /** Laid over the base map on the slabs to soften its contrast, so the data drawn on top stands out. */
-const BASE_WASH = 'rgba(42, 47, 58, 0.5)';
+const BASE_WASH = 'rgba(42, 47, 58, 0.15)';
 /** Opacity of the base map on the slabs: below 1 the slabs underneath show through. The data stays opaque. */
-const BASE_OPACITY = 0.5;
+const BASE_OPACITY = 0.55;
 /** A slab under the mouse grows to this size, so it can be seen better. */
 const HOVER_SCALE = 1.12;
 
@@ -99,6 +99,14 @@ const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData
 };
 
 export const STACKABLE = new Set(Object.keys(SLABS));
+
+/** Stack order of these layer ids, bottom to top: catalog order, with TOP_SLAB moved to the top. */
+export function stackOrder(ids: string[]): string[] {
+  return ids.filter((id) => SLABS[id] && id !== TOP_SLAB).concat(ids.includes(TOP_SLAB) ? [TOP_SLAB] : []);
+}
+
+/** The bottom layer is not lifted: it stays on the ground (as the map layer itself), under the slabs. */
+export const groundLayerOf = (ids: string[]): string | undefined => stackOrder(ids)[0];
 
 type LonLat = [number, number];
 type SliceData = {
@@ -164,7 +172,7 @@ export function createLayerStack(site: Site, defs: LayerDef[]) {
   }
 
   /**
-   * Rebuild the stack with these data layer ids (TOP_SLAB moves to the top) over these base map layers
+   * Rebuild the stack with these data layer ids (see stackOrder; the bottom one stays on the ground) over these base map layers
    * (bottom to top, as on the ground). Returns the slabs placed, top to bottom.
    */
   async function update(ids: string[], baseLayers: Layer[]): Promise<StackSlab[]> {
@@ -173,14 +181,14 @@ export function createLayerStack(site: Site, defs: LayerDef[]) {
     if (base?.key !== key) base = { key, image: baseImage(area, baseLayers), textures: new Map() };
     const current = base;
     const [d, map] = await Promise.all([data.get(site.id)!, current.image]);
-    const ordered = ids.filter((id) => SLABS[id] && id !== TOP_SLAB).concat(ids.includes(TOP_SLAB) ? [TOP_SLAB] : []);
+    const [groundId, ...lifted] = stackOrder(ids);
 
     const graphics: Graphic[] = [];
     const placed = new Map<string, { graphic: Graphic; mesh: Mesh; scale: number }>();
     const slabs: StackSlab[] = [];
     const bottom = d.max + LIFT * SIZE_M;
     let z = bottom;
-    for (const id of ordered) {
+    for (const id of lifted) {
       const def = defs.find((l) => l.id === id)!;
       let texture = current.textures.get(id);
       if (!texture) {
@@ -202,8 +210,13 @@ export function createLayerStack(site: Site, defs: LayerDef[]) {
       slabs.unshift({ id, title: def.title, corners: corners(area, z + height / 2) });
       z += height + GAP * SIZE_M;
     }
+    // The bottom layer's label, next to the ground.
+    if (groundId) {
+      const title = defs.find((l) => l.id === groundId)!.title;
+      slabs.push({ id: groundId, title, corners: cornerLonLats(area).map(([x, y]) => new Point({ x, y, z: dtmAt(d, x, y), spatialReference: marsSR() })) });
+    }
     // Dashed guides from the ground up to the bottom of the stack.
-    if (ordered.length) {
+    if (lifted.length) {
       for (const [lon, lat] of cornerLonLats(area)) {
         graphics.push(
           new Graphic({
@@ -218,7 +231,7 @@ export function createLayerStack(site: Site, defs: LayerDef[]) {
     pieces = placed;
     animate(); // a slab still hovered grows again
     footprint.removeAll();
-    if (ordered.length) {
+    if (groundId) {
       const ring = cornerLonLats(area);
       footprint.add(
         new Graphic({
@@ -459,7 +472,7 @@ function slabMesh(area: Area, z: number, thickness: number, texture: HTMLCanvasE
     vertexAttributes: { position: new Float64Array(position), uv: new Float32Array(uv) },
     components: [
       new MeshComponent({ faces: new Uint32Array(top), material: new MeshMaterial({ colorTexture: new MeshTexture({ data: texture, transparent: true }), alphaMode: 'blend', doubleSided: true }) }),
-      new MeshComponent({ faces: new Uint32Array(sides), material: new MeshMaterial({ color: SIDE_COLOR, doubleSided: true }) }),
+      new MeshComponent({ faces: new Uint32Array(sides), material: new MeshMaterial({ color: SIDE_COLOR, alphaMode: 'blend', doubleSided: true }) }),
     ],
   });
 }
