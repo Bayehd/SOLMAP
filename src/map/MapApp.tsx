@@ -13,7 +13,7 @@ import { RoutePanel } from '../route/RoutePanel';
 import { useRoutePlanner } from '../route/useRoutePlanner';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
-import { STACKABLE, createLayerStack, type StackSlab } from './layerStack';
+import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
 import { JEZERO_DTM_EXTENT, LANDING_SITE, jezeroExtent, landingExtent, marsSR } from './mars';
 import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
@@ -57,6 +57,7 @@ const CAMERA_VIEWS: { id: CameraView; label: string }[] = [
 // Side view: the layer stack, seen corner-on from the southwest.
 const SIDE_TILT = 68;
 const SIDE_HEADING = 35;
+const SIDE_ZOOM = 0.85; // after framing the whole stack, move in this much closer (smaller = closer)
 const LABEL_GAP_PX = 24; // between the stack and its labels
 const TOP_ZOOM = 0.65; // top view frames this fraction of the Jezero area (smaller = closer)
 
@@ -128,7 +129,10 @@ export function MapApp({
 
   // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
-    for (const def of LAYERS) layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id));
+    // The bottom layer of the stack stays on the ground.
+    const ground = groundLayerOf(LAYERS.filter((l) => visibility[l.id]).map((l) => l.id));
+    for (const def of LAYERS)
+      layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id) && def.id !== ground);
   }, [visibility, layers, cameraView]);
 
   useEffect(() => {
@@ -215,8 +219,8 @@ export function MapApp({
   useEffect(() => {
     const side = cameraView === 'side';
     for (const l of stack.layers) l.visible = side;
-    // Keep the stack clear of the title card (top left), where its labels go.
-    if (viewRef.current) viewRef.current.padding = { top: side ? 160 : 0, left: side ? 120 : 0, right: 0, bottom: 0 };
+    // Keep the stack clear of the toolbar and route panel (top left), where its labels go.
+    if (viewRef.current) viewRef.current.padding = { top: side ? 120 : 0, left: side ? 120 : 0, right: 0, bottom: 0 };
     if (!side) {
       framed.current = false;
       setSlabs([]);
@@ -229,9 +233,12 @@ export function MapApp({
         if (cancelled) return;
         setSlabs(placed);
         const view = viewRef.current;
-        if (framed.current || !view || !placed.length) return;
+        if (framed.current || !view || !stack.stack.graphics.length) return;
         framed.current = true;
-        view.goTo({ target: stack.stack.graphics.toArray(), heading: SIDE_HEADING, tilt: SIDE_TILT }, { duration: 1500 }).catch(() => {});
+        view
+          .goTo({ target: stack.stack.graphics.toArray(), heading: SIDE_HEADING, tilt: SIDE_TILT }, { duration: 1500 })
+          .then(() => view.goTo({ target: view.center, scale: view.scale * SIDE_ZOOM }, { duration: 500 }))
+          .catch(() => {});
       })
       .catch((err) => console.error('Could not build the layer stack', err));
     return () => {

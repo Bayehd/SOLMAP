@@ -23,7 +23,8 @@ Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at
 
 In the **Side** view, the Jezero terrain area (the 20 m DTM extent, ~30 km square) is lifted off the
 ground and pulled apart into one slab per checked data layer: slope, minerals and the Perseverance
-layers from the ground up, with elevation on top in 2× relief. Every slab shows the base map with its
+layers from the ground up, with elevation on top in 2× relief. The lowest checked layer is not lifted:
+it stays on the ground under the stack. Every slab shows the base map with its
 layer's data on top, as on the map, and is labelled. The rover is hidden in this view.
 
 ```sh
