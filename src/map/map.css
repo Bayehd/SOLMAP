@@ -19,13 +19,26 @@
 .map-toolbar .btn:hover:not(:disabled) { background: #e4e0db; border-color: transparent; }
 .map-toolbar .btn[aria-pressed="true"] { color: #fff; background: #b8432b; border-color: transparent; }
 .map-toolbar .btn[aria-pressed="true"]:hover:not(:disabled) { background: #c9503a; }
-/* The top-left buttons (Earth, ▶, route) are a little see-through; solid again on hover. */
+/* The top-left buttons (▶, route) are a little see-through; solid again on hover. */
 .map-left .map-toolbar .btn { background: rgba(207, 202, 196, 0.7); }
 .map-left .map-toolbar .btn[aria-pressed="true"] { background: rgba(184, 67, 43, 0.8); }
 .map-left .map-toolbar .btn:hover:not(:disabled) { background: #e4e0db; }
 .map-left .map-toolbar .btn[aria-pressed="true"]:hover:not(:disabled) { background: #c9503a; }
 .map-toolbar .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .play-btn { min-width: 40px; text-align: center; }
+/* Rover view: the words rise out of the ground at a fixed spot (their bottom edge clips them from below), then the round button pops in. */
+.earth-rise { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -100%); /* left/top: the ground spot, set from the map */ display: flex; align-items: center; gap: 14px;
+  overflow: hidden; padding: 6px 8px 2px; pointer-events: none; }
+.earth-rise-text { display: block; font-size: clamp(22px, 3.2vw, 36px); font-weight: 700; letter-spacing: 0.04em; color: #fff; white-space: nowrap;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.7), 0 0 18px rgba(0,0,0,0.45); animation: earth-rise 1.4s cubic-bezier(.2,.7,.2,1) both; }
+.earth-rise-btn { all: unset; box-sizing: border-box; pointer-events: auto; cursor: pointer; display: grid; place-items: center; width: 46px; height: 46px;
+  border-radius: 50%; color: #fff; background: #b8432b; box-shadow: 0 2px 10px rgba(0,0,0,0.5); transition: background 0.15s;
+  animation: earth-rise 1.4s cubic-bezier(.2,.7,.2,1) 0.5s both; }
+.earth-rise-btn:hover:not(:disabled) { background: #c9503a; }
+.earth-rise-btn:disabled { opacity: 0.6; cursor: default; }
+.earth-rise-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@keyframes earth-rise { from { transform: translateY(120%); opacity: 0; } 60% { opacity: 1; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .earth-rise-text, .earth-rise-btn { animation: none; } }
 .drive-bar { align-self: center; width: 180px; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(207, 202, 196, 0.75); }
 .drive-bar > span { display: block; height: 100%; background: #b8432b; border-radius: inherit; }
 .rover-front { position: absolute; height: auto; max-width: none; pointer-events: none; user-select: none; }

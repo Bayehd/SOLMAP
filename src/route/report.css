@@ -1,0 +1,60 @@
+/* Mission report: a glass panel on the Earth page. Same look as the Safest route panel. */
+.mission-report {
+  position: absolute; inset: 0; margin: auto; z-index: 5; height: fit-content;
+  width: min(940px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow-y: auto;
+  padding: 22px 28px 20px; color: var(--text);
+  background: var(--panel-bg, rgba(20, 16, 13, 0.62)); backdrop-filter: blur(12px);
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.18)); border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+  animation: mr-panel 0.7s ease-out both;
+}
+@keyframes mr-panel { from { opacity: 0; transform: scale(0.96) translateY(12px); } to { opacity: 1; transform: none; } }
+.mr-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 28px; }
+.mr-col { min-width: 0; }
+.mr-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--panel-border, rgba(255, 255, 255, 0.18)); }
+.mr-status { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.mr-dot { width: 8px; height: 8px; border-radius: 50%; background: #f5b841; animation: mr-pulse 1s ease-in-out infinite; }
+.mr-status[data-state="done"] .mr-dot { background: #3cc85a; animation: none; }
+.mr-status[data-state="error"] .mr-dot { background: #f04646; animation: none; }
+@keyframes mr-pulse { 50% { opacity: 0.3; } }
+.mr-x { all: unset; cursor: pointer; font-size: 20px; color: var(--muted); padding: 0 4px; }
+.mr-sec { opacity: 0; transform: translateY(10px); animation: mr-in 0.5s ease-out var(--d, 0s) forwards; margin-bottom: 12px; }
+@keyframes mr-in { to { opacity: 1; transform: none; } }
+.mr-title { margin: 0; font-size: 24px; letter-spacing: 0.01em; }
+.mr-route { margin: 4px 0 0; font-size: 17px; font-weight: 600; color: #3cdcff; }
+.mr-muted { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.mr-warn { color: #f5a623; font-size: 13px; }
+.mr-crew { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin-top: 10px; }
+.mr-crew label { display: grid; grid-template-columns: 52px 1fr; align-items: center; font-size: 12px; color: var(--muted); }
+.mr-crew input { all: unset; color: var(--text); font-size: 13px; border-bottom: 1px dashed rgba(255, 255, 255, 0.3); padding: 2px 0; }
+.mr-crew input:focus { border-bottom-color: #3cdcff; }
+.mission-report h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.mr-points { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mr-big { margin: 0; font-size: 14px; font-weight: 600; }
+.mr-minimap, .mr-profile { width: 100%; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.18)); border-radius: 8px; }
+.mr-svgtext { fill: #a99f96; font-size: 9px; }
+.mr-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: mr-line 1.6s ease-out var(--d, 0.6s) forwards; }
+.mr-map-sec .mr-draw { --d: 1.1s; }
+.mr-prof-sec .mr-draw { --d: 2.1s; }
+@keyframes mr-line { to { stroke-dashoffset: 0; } }
+.mr-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mr-tiles div { background: rgba(255, 255, 255, 0.06); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; }
+.mr-tiles span { font-size: 11px; color: var(--muted); }
+.mr-tiles b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.mr-tiles i { font-size: 11px; font-style: normal; color: var(--muted); }
+.mission-report p { margin: 0 0 4px; font-size: 13px; }
+.mission-report ul { margin: 4px 0 0; padding-left: 16px; display: grid; gap: 3px; font-size: 13px; }
+.mission-report li em { color: var(--muted); font-style: normal; font-size: 12px; margin-left: 6px; }
+.mr-minerals { list-style: none; padding-left: 0 !important; }
+.mr-sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+.mr-foot { font-size: 11px !important; color: var(--muted); }
+.mr-actions { display: flex; gap: 8px; opacity: 0; animation: mr-in 0.5s ease-out 4.5s forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .mission-report, .mr-sec, .mr-actions, .mr-draw { animation: none; opacity: 1; transform: none; stroke-dashoffset: 0; }
+  .mr-dot { animation: none; }
+}
+@media (max-width: 760px) {
+  .mission-report { width: calc(100vw - 24px); max-height: calc(100vh - 24px); padding: 16px; }
+  .mr-cols { grid-template-columns: 1fr; }
+  .mr-crew { grid-template-columns: 1fr; }
+}
