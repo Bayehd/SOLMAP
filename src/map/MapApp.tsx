@@ -14,7 +14,7 @@ import Graphic from '@arcgis/core/Graphic';
 import { RoutePanel } from '../route/RoutePanel';
 import { useRoutePlanner } from '../route/useRoutePlanner';
 import type { RouteResult } from '../route/planner';
-import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
+import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, listRank, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSampleTubes } from './sampleTubes';
 import { MINERAL_BOARD_W_M, createMineralPins } from './mineralSpots';
@@ -135,7 +135,12 @@ export function MapApp({
   const [labelPos, setLabelPos] = useState<{ id: string; x: number; y: number }[]>([]);
   const [hoveredSlab, setHoveredSlab] = useState<string | null>(null);
   const defs = useMemo(() => layersFor(site), [site]);
-  const groups = useMemo(() => [...new Set(defs.filter((l) => l.listed !== false).map((l) => l.group))], [defs]);
+  // The layer list, most useful first (LIST_ORDER); the map draws the layers in their own order (layersFor).
+  const listed = useMemo(
+    () => defs.filter((l) => l.listed !== false).sort((a, b) => listRank(a.id) - listRank(b.id)),
+    [defs],
+  );
+  const groups = useMemo(() => [...new Set(listed.map((l) => l.group))], [listed]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => initialVisibility(defs));
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -779,7 +784,7 @@ export function MapApp({
         {panelOpen &&
           groups.map((group) => (
             <section key={group} aria-label={group}>
-              {defs.filter((l) => l.group === group && l.listed !== false).map((def) => (
+              {listed.filter((l) => l.group === group).map((def) => (
                 <div key={def.id} className="layer-row">
                   <label data-on={visibility[def.id]}>
                     <input type="checkbox" checked={visibility[def.id]} onChange={() => toggle(def)} />

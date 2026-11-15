@@ -142,6 +142,13 @@ export const RAD_STOPS = [
   { value: 285, color: [190, 30, 70] },
 ];
 
+/** Order of the layer list, most useful first: the safety and the rover's work, then minerals, then heat. Unlisted ids go last. */
+const LIST_ORDER = ['slope', 'elevation', 'traverse', 'samples', 'depot', 'mineral-spots', 'minerals', 'radiation', 'themis-night', 'themis-day'];
+export const listRank = (id: string) => {
+  const i = LIST_ORDER.indexOf(id);
+  return i < 0 ? LIST_ORDER.length : i;
+};
+
 /** Every layer of a site: the base maps, then the site's terrain, minerals and rover layers (where it has data). */
 export function layersFor(site: Site): LayerDef[] {
   const terrain = `${site.short} terrain (20 m)`;
