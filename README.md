@@ -30,11 +30,13 @@ where Mount Sharp already rises 4 km). The lowest checked layer (the traverse, w
 stays on the ground under the stack. Every slab shows the base map with its
 layer's data on top, as on the map, and is labelled. The rover is hidden in this view.
 
-The **Rover** view rides on the rover at the height of its mast cameras (2.2 m) as it drives the traverse,
-looking ahead with only its wheels in view (`public/models/perseverance-wheels.glb`, cut from the rover model by
-`scripts/make_wheels_model.py`) and the route ahead drawn on the ground like a navigation app (blue ahead, gray
-where it has been). It shows only the ground (base map and, at Jezero, the crater model texture): the data
-layers, planner and panels are hidden. ▶ starts and pauses the drive.
+The **Rover** view rides on a camera fixed on top of the rover (just above the mast) as it drives the
+traverse, looking ahead over its front: the mast, arm and front of the deck stay in the same place at the
+bottom of the screen (a picture of the 3D model from that camera, `public/models/rover-front.webp`, made with
+`scripts/capture_rover_front.mjs` and `scripts/cutout_rover_front.py`, so it cannot shake as the rover drives). The route is one continuous, very wide (5 m) and see-through track on the ground,
+in a darker, faint shade of the ground's tan, so it reads as a road. It shows only the ground
+(base map and, at Jezero, the crater model texture): the data layers, planner and panels are hidden.
+▶ starts and pauses the drive.
 
 ```sh
 npm install

@@ -42,7 +42,13 @@ export type RoverControl = {
 export type DriveState = { ready: boolean; playing: boolean; km: number; totalKm: number };
 
 /** Where the rover is and which way it is driving (degrees clockwise from north), for the Rover camera view. */
-export type RoverPose = { lon: number; lat: number; travelHeading: number; groundZ: number | null; distM: number };
+export type RoverPose = {
+  lon: number;
+  lat: number;
+  travelHeading: number;
+  groundZ: number | null;
+  distM: number;
+};
 
 const roverSymbol = (height: number, heading: number) =>
   new PointSymbol3D({
@@ -50,20 +56,6 @@ const roverSymbol = (height: number, heading: number) =>
       new ObjectSymbol3DLayer({
         resource: { href: publicUrl('models/perseverance.glb') },
         height,
-        heading,
-        anchor: 'bottom',
-      }),
-    ],
-  });
-
-// Riding on the rover (the Rover view) you see its wheels, not the rest: a copy of the model with only the wheels
-// (scripts/make_wheels_model.py). They span the rover's full width, so sizing by width keeps the real scale.
-const wheelsSymbol = (heading: number) =>
-  new PointSymbol3D({
-    symbolLayers: [
-      new ObjectSymbol3DLayer({
-        resource: { href: publicUrl('models/perseverance-wheels.glb') },
-        width: REAL_HEIGHT_M * ROVER_WIDTH_PER_HEIGHT,
         heading,
         anchor: 'bottom',
       }),
@@ -165,7 +157,7 @@ export function attachRover(
   onMove(listener: ((p: RoverPose) => void) | null): void;
   /** Driving speed in m/s; null = the whole route in DRIVE_SECONDS. */
   setSpeed(mps: number | null): void;
-  /** Show only the wheels, at real size, for the Rover view (the camera rides on the rover). */
+  /** Draw the rover at its real size, for the Rover view (the camera rides on its front). */
   setRiding(on: boolean): void;
   /** Points along the route from fromM to toM (meters driven), every stepM. */
   routeBetween(fromM: number, toM: number, stepM: number): { lon: number; lat: number }[];
@@ -183,7 +175,7 @@ export function attachRover(
   let riding = false;
 
   const place = () => (graphic.geometry = point(lon, lat, altitude));
-  const resymbol = () => (graphic.symbol = riding ? wheelsSymbol(heading) : roverSymbol(height, heading));
+  const resymbol = () => (graphic.symbol = roverSymbol(riding ? REAL_HEIGHT_M : height, heading));
 
   view.map?.ground
     .queryElevation(point(siteLon, siteLat, 0))
@@ -305,7 +297,7 @@ export function attachRover(
       speed = mps;
     },
     setRiding(on) {
-      riding = on; // the wheels have their own, real size; the full rover keeps its enlarged one
+      riding = on; // real size while riding; the enlarged size comes back afterwards
       resymbol();
       if (on) moveTo(s); // turn a parked rover to face the route
     },
