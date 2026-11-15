@@ -24,31 +24,32 @@ const TUBE_ASIDE_M = 6; // from the route to the tube's center, to the right of 
 const TUBE_VIEW_DIST_M = 12; // with a board up, the camera is at least this far from the tube, so the tube is in view
 const MAX_LOOK_DOWN_DEG = 20; // with a board up, the camera looks down at most this much from level
 const LOOK_DOWN_SPARE_DEG = 14; // a tube this far below the view's center is still well inside the view
+const BOARD_DOWN_SPARE_DEG = 7; // the board's center this far below the view's center, so a far target near the horizon shows too
 const PIN_HEIGHT_M = 5; // a marker this high above each tube, so it can be spotted (and clicked) from afar
 
-const BOARD_W_M = 2.8;
-const BOARD_H_M = 2.7;
+export const BOARD_W_M = 2.8;
+export const BOARD_H_M = 2.7;
 const BOARD_LIFT_M = 0.3; // gap between the ground and the board's bottom edge
 const BOARD_DIST_M = 11; // from the camera
 const VIEW_LEFT_DEG = 12; // the camera looks this far left of the tube, so the tube shows right of center
 const BOARD_LEFT_DEG = 13; // the board's center is this far left of where the camera looks
-const BOARD_PX = 900; // canvas height; width follows the board's shape, so text keeps its size
+export const BOARD_PX = 900; // canvas height; width follows the board's shape, so text keeps its size
 const MAP_RADIUS_M = 400; // the board's small map shows this far around the sample
 
 export type SampleTube = { number: number; name: string; kind: string; sol: number; lon: number; lat: number };
 type Entry = { image?: string; imageCaption?: string; text?: string };
-type Line = [number, number][];
-type GeoJSON = { features: { geometry: { type: string; coordinates: unknown }; properties: Record<string, unknown> }[] };
+export type Line = [number, number][];
+export type GeoJSON = { features: { geometry: { type: string; coordinates: unknown }; properties: Record<string, unknown> }[] };
 
 
-const json = <T,>(path: string) =>
+export const json = <T,>(path: string) =>
   fetch(publicUrl(path))
     .then((r) => (r.ok ? r.json() : null))
     .catch(() => null) as Promise<T | null>;
 
-const mPerDegLon = (lat: number) => METERS_PER_DEGREE * Math.cos((lat * Math.PI) / 180);
+export const mPerDegLon = (lat: number) => METERS_PER_DEGREE * Math.cos((lat * Math.PI) / 180);
 
-function routeLines(g: GeoJSON | null): Line[] {
+export function routeLines(g: GeoJSON | null): Line[] {
   const out: Line[] = [];
   for (const f of g?.features ?? []) {
     if (f.geometry.type === 'LineString') out.push(f.geometry.coordinates as Line);
@@ -82,7 +83,7 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-function wrap(ctx: CanvasRenderingContext2D, text: string, width: number): string[] {
+export function wrap(ctx: CanvasRenderingContext2D, text: string, width: number): string[] {
   const lines: string[] = [];
   for (const para of text.split(/\n\s*\n/)) {
     let line = '';
@@ -289,26 +290,47 @@ export function createSampleTubes(site: Site) {
 
   /** Stand the board for these samples near the camera, left of the tube; returns the camera position and heading that show both. */
   async function showBoard(view: SceneView, samples: SampleTube[], eyeHeightM: number) {
+    const tube = tubeLayer.graphics.find((g) => stops[g.attributes.stop] === samples)?.geometry as Point | undefined;
+    const target = tube ?? new Point({ x: samples[0].lon, y: samples[0].lat, z: 0, spatialReference: marsSR() });
+    return standBoard(view, target, eyeHeightM, BOARD_W_M, () =>
+      entries.then((e) => {
+        const list = samples.map((s) => e?.samples[String(s.number)] ?? null);
+        const others = all.filter((s) => !samples.includes(s)).map((s) => [s.lon, s.lat] as [number, number]);
+        return drawBoard(samples, list, route, others);
+      }),
+    );
+  }
+
+  /**
+   * Stand a board widthM wide on the ground near the camera, left of a target on the ground (a tube, a pin), facing the
+   * camera; its face is drawn by face() (height BOARD_PX, width to the board's shape). Returns the camera position and
+   * heading that show the board and the target.
+   */
+  function standBoard(view: SceneView, target: Point, eyeHeightM: number, widthM: number, face: () => Promise<HTMLCanvasElement>) {
     boardLayer.removeAll();
     let cam = view.camera.position;
-    const tube = tubeLayer.graphics.find((g) => stops[g.attributes.stop] === samples)?.geometry as Point | undefined;
-    const at = tube ? [tube.x, tube.y] : [samples[0].lon, samples[0].lat];
+    const at = [target.x, target.y];
     const mx = mPerDegLon(cam.y);
     const [dx, dy] = [(at[0] - cam.x) * mx, (at[1] - cam.y) * METERS_PER_DEGREE];
     const bearing = (Math.atan2(dx, dy) * 180) / Math.PI;
-    // A tube right by the rover would be under a level camera's view: step back from it first.
+    // A target right by the rover would be under a level camera's view: step back from it first.
     const back = TUBE_VIEW_DIST_M - Math.hypot(dx, dy);
     if (back > 0) {
       const r = (bearing * Math.PI) / 180;
       cam = new Point({ x: cam.x - (back * Math.sin(r)) / mx, y: cam.y - (back * Math.cos(r)) / METERS_PER_DEGREE, z: cam.z, spatialReference: marsSR() });
     }
-    const heading = (bearing - VIEW_LEFT_DEG + 360) % 360; // where the camera will look
+    // A wider board sits further left, so it doesn't cover the target.
+    const leftExtra = ((widthM - BOARD_W_M) / 2 / BOARD_DIST_M) * (180 / Math.PI);
+    const heading = (bearing - VIEW_LEFT_DEG - leftExtra / 2 + 360) % 360; // where the camera will look
     const ground = (cam.z ?? 0) - eyeHeightM; // the rover's ground: the view's quick terrain lookup is too coarse here
-    // Look down just enough to have the tube in view (it lies on the ground, below eye level).
-    const tubeZ = tube ? ((view.groundView?.elevationSampler?.queryElevation(tube) as Point | null)?.z ?? ground) : ground;
+    // Look down just enough to have the target in view (it is on the ground, below eye level).
+    const targetZ = (view.groundView?.elevationSampler?.queryElevation(target) as Point | null)?.z ?? ground;
     const dist = Math.max(TUBE_VIEW_DIST_M, Math.hypot(dx, dy));
-    const down = Math.min(MAX_LOOK_DOWN_DEG, Math.max(0, (Math.atan2((cam.z ?? 0) - tubeZ, dist) * 180) / Math.PI - LOOK_DOWN_SPARE_DEG));
-    const b = ((heading - BOARD_LEFT_DEG) * Math.PI) / 180;
+    // ... and at least enough to have the whole board in view (a far target, like a mineral pin, is near the horizon).
+    const boardDown = (Math.atan2(eyeHeightM - (BOARD_LIFT_M + BOARD_H_M / 2), BOARD_DIST_M) * 180) / Math.PI + BOARD_DOWN_SPARE_DEG;
+    const toTarget = (Math.atan2((cam.z ?? 0) - targetZ, dist) * 180) / Math.PI - LOOK_DOWN_SPARE_DEG;
+    const down = Math.min(MAX_LOOK_DOWN_DEG, Math.max(0, toTarget, boardDown));
+    const b = ((heading - BOARD_LEFT_DEG - leftExtra / 2) * Math.PI) / 180;
     const lon = cam.x + (BOARD_DIST_M * Math.sin(b)) / mx;
     const lat = cam.y + (BOARD_DIST_M * Math.cos(b)) / METERS_PER_DEGREE;
     // Square to the camera's view: width along the camera's right-hand direction, height along its up direction
@@ -317,22 +339,19 @@ export function createSampleTubes(site: Site) {
     const a = (down * Math.PI) / 180;
     const right = [Math.cos(h), -Math.sin(h), 0];
     const up = [Math.sin(a) * Math.sin(h), Math.sin(a) * Math.cos(h), Math.cos(a)];
-    const [hw, hh] = [BOARD_W_M / 2, BOARD_H_M / 2];
+    const [hw, hh] = [widthM / 2, BOARD_H_M / 2];
     const mid = BOARD_LIFT_M + hh * Math.cos(a); // center height, so the bottom edge is BOARD_LIFT_M above the ground
     const corner = (x: number, y: number) => [0, 1, 2].map((k) => right[k] * x + up[k] * y + (k === 2 ? mid : 0));
     const corners = [corner(-hw, hh), corner(hw, hh), corner(hw, -hh), corner(-hw, -hh)];
-    void entries.then(async (e) => {
-      const list = samples.map((s) => e?.samples[String(s.number)] ?? null);
-      const others = all.filter((s) => !samples.includes(s)).map((s) => [s.lon, s.lat] as [number, number]);
-      const face = await drawBoard(samples, list, route, others);
+    void face().then((canvas) => {
       boardLayer.removeAll(); // a later click may have drawn one meanwhile
-      boardLayer.add(new Graphic({ geometry: quad([lon, lat, ground], corners, face) }));
+      boardLayer.add(new Graphic({ geometry: quad([lon, lat, ground], corners, canvas) }));
     });
-    // The camera turns toward the tube, a little to its left, so the board (left) and the tube (right) both show.
+    // The camera turns toward the target, a little to its left, so the board (left) and the target (right) both show.
     return { position: cam, heading, tilt: 90 - down };
   }
 
   const clearBoard = () => boardLayer.removeAll();
 
-  return { tubeLayer, boardLayer, load, samplesOf, showBoard, clearBoard };
+  return { tubeLayer, boardLayer, load, samplesOf, showBoard, standBoard, clearBoard };
 }

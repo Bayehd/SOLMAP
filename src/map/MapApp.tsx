@@ -15,6 +15,7 @@ import { useRoutePlanner } from '../route/useRoutePlanner';
 import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSampleTubes } from './sampleTubes';
+import { MINERAL_BOARD_W_M, MINERAL_NOTES, SPOT_COLOR, createMineralPins, type MineralSpot } from './mineralSpots';
 import { createSiteElevationLayer } from './SiteElevationLayer';
 import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
 import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
@@ -33,6 +34,7 @@ type Probe = {
   sample: { number: number; name: string; kind: string; sol: number } | null; // clicked sample point
   depot: { name: string; sol: number } | null; // clicked depot tube
   rad: { sol_start: number; sol_end: number; sols_measured: number; dose_si: number; dose_plastic: number | null } | null; // clicked RAD stop
+  spot: MineralSpot | null; // clicked mineral spot or pin
 };
 
 const initialVisibility = (defs: LayerDef[]) => Object.fromEntries(defs.map((l) => [l.id, l.visible]));
@@ -146,7 +148,7 @@ export function MapApp({
   driveRef.current = drive;
 
   // One Map and one set of layers for both views, so a toggle applies to both.
-  const { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, tubes, stack } = useMemo(() => {
+  const { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, tubes, minerals, stack } = useMemo(() => {
     const layers: Record<string, Layer> = {};
     for (const def of defs) {
       const layer = def.create();
@@ -162,13 +164,15 @@ export function MapApp({
     const guideLayer = createRouteGuideLayer(); // the route line of the Rover view
     const stack = createLayerStack(site, defs);
     const tubes = createSampleTubes(site); // sample tubes and their boards, only in the Rover view
+    const minerals = createMineralPins(site); // mineral pins, only in the Rover view
     const map = new ArcGISMap({
-      layers: [...defs.map((d) => layers[d.id]), tubes.tubeLayer, routeLayer, guideLayer, roverLayer, tubes.boardLayer, ...stack.layers],
+      layers: [...defs.map((d) => layers[d.id]), tubes.tubeLayer, minerals.layer, routeLayer, guideLayer, roverLayer, tubes.boardLayer, ...stack.layers],
       // Mars tan under the CTX mosaic, so its few coverage gaps don't show as white streaks.
       ground: { layers: [createSiteElevationLayer(site, globalElevation)], surfaceColor: [176, 128, 90] },
     });
     void tubes.load();
-    return { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, tubes, stack };
+    void minerals.load();
+    return { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, tubes, minerals, stack };
   }, [site, defs]);
 
   const planner = useRoutePlanner(routeLayer, layers, site);
@@ -210,6 +214,7 @@ export function MapApp({
     );
     const rover = attachRover(view, roverLayer, site, setDrive);
     roverRef.current = rover;
+    if (import.meta.env.DEV) Object.assign(window, { solmapRover: rover }); // for tests in the browser console
     if (roverControlRef.current) roverControlRef.current.current = rover;
 
     view.when(() => {
@@ -229,8 +234,21 @@ export function MapApp({
       // Rover view: a click on a sample tube stops the drive, stands its board beside the rover and turns the
       // camera so the board and the tube both show.
       if (cameraViewRef.current === 'rover') {
-        const hit = await view.hitTest(event, { include: [tubes.tubeLayer] }).catch(() => null);
+        const hit = await view.hitTest(event, { include: [tubes.tubeLayer, minerals.layer] }).catch(() => null);
         const g = hit?.results.find((r) => r.type === 'graphic');
+        const spot = g && g.type === 'graphic' ? minerals.spotOf(g.graphic) : null;
+        if (spot && g?.type === 'graphic') {
+          // A mineral pin: like a sample tube, the drive stops and the mineral's (wider) board stands beside the rover.
+          if (driveRef.current.playing) roverRef.current?.toggleDrive();
+          setProbe(null);
+          setBoardUp(true);
+          boardUpRef.current = true;
+          const { position, heading, tilt } = tubes.standBoard(view, g.graphic.geometry as Point, ROVER_CAM_UP_M, MINERAL_BOARD_W_M, () =>
+            minerals.boardFace(g.graphic),
+          );
+          view.goTo(new Camera({ position, heading, tilt, fov: BOARD_FOV }), { duration: 1200, easing: 'cubic-in-out' }).catch(() => {});
+          return;
+        }
         const samples = g && g.type === 'graphic' ? tubes.samplesOf(g.graphic) : null;
         if (samples) {
           if (driveRef.current.playing) roverRef.current?.toggleDrive();
@@ -250,7 +268,7 @@ export function MapApp({
         return v === undefined || v === null || v <= -32767 ? null : v;
       };
       const pointHits = view
-        .hitTest(event, { include: [layers['samples'], layers['depot'], layers['radiation']].filter(Boolean) })
+        .hitTest(event, { include: [layers['samples'], layers['depot'], layers['radiation'], layers['mineral-spots']].filter(Boolean) })
         .then((h) => {
           const attrs = (id: string) => {
             for (const r of h.results) if (r.type === 'graphic' && r.layer === layers[id]) return r.graphic.attributes;
@@ -260,9 +278,10 @@ export function MapApp({
             sample: attrs('samples') as Probe['sample'],
             depot: attrs('depot') as Probe['depot'],
             rad: attrs('radiation') as Probe['rad'],
+            spot: attrs('mineral-spots') as Probe['spot'],
           };
         })
-        .catch(() => ({ sample: null, depot: null, rad: null }));
+        .catch(() => ({ sample: null, depot: null, rad: null, spot: null }));
       const [dtm, slope, mineral, global, hits] = await Promise.all([
         pixel('elevation'),
         pixel('slope'),
@@ -287,17 +306,17 @@ export function MapApp({
       view.destroy();
       viewRef.current = null;
     };
-  }, [map, layers, globalElevation, roverLayer, tubes, site]);
+  }, [map, layers, globalElevation, roverLayer, tubes, minerals, site]);
 
   useEffect(() => {
     roverLayer.visible = showRover && cameraView !== 'side' && (!riding || boardUp); // hidden under the stack, or shown as a picture
     guideLayer.visible = cameraView === 'rover';
-    tubes.tubeLayer.visible = tubes.boardLayer.visible = cameraView === 'rover';
+    tubes.tubeLayer.visible = tubes.boardLayer.visible = minerals.layer.visible = cameraView === 'rover';
     if (cameraView !== 'rover') {
       tubes.clearBoard();
       setBoardUp(false);
     }
-  }, [showRover, roverLayer, guideLayer, tubes, cameraView, riding, boardUp]);
+  }, [showRover, roverLayer, guideLayer, tubes, minerals, cameraView, riding, boardUp]);
 
   // Driving on takes the board down.
   useEffect(() => {
@@ -371,7 +390,7 @@ export function MapApp({
       setRiding(false);
       guideLayer.removeAll();
       // Normally showView has already put the lens back before flying out; setting the camera here would stop that flight.
-      if (view.camera.fov !== DEFAULT_FOV && !view.animation) view.camera = normalLens(view.camera);
+      if (!view.destroyed && view.camera && view.camera.fov !== DEFAULT_FOV && !view.animation) view.camera = normalLens(view.camera);
       clip.mode = 'auto';
     };
   }, [cameraView, site, guideLayer]);
@@ -703,6 +722,19 @@ export function MapApp({
           <button className="close" aria-label="Close" onClick={() => setProbe(null)}>
             ×
           </button>
+          {probe.spot && (
+            <div className="probe-spot">
+              <h3>
+                <span className="swatch" style={{ background: `rgb(${SPOT_COLOR.join(',')})` }} /> {probe.spot.mineral}
+              </h3>
+              <p>{MINERAL_NOTES[probe.spot.mineral]}</p>
+              <p className="muted small">
+                Seen from orbit by CRISM: a {probe.spot.area_km2 < 0.1 ? `${Math.round(probe.spot.area_km2 * 1e6).toLocaleString()} m²` : `${probe.spot.area_km2.toFixed(2)} km²`} patch,{' '}
+                {probe.spot.route_dist_m < 50 ? 'on the rover\'s route' : `${probe.spot.route_dist_m.toLocaleString()} m from the rover's route`}. Indicative only.
+              </p>
+            </div>
+          )}
+          {probe.dtm !== null || probe.global !== null || !probe.spot ? (
           <dl>
             {probe.sample && (
               <>
@@ -758,6 +790,7 @@ export function MapApp({
             <dt>Elevation (MOLA, 463 m)</dt>
             <dd>{probe.global === null ? '–' : `${probe.global.toFixed(0)} m`}</dd>
           </dl>
+          ) : null}
         </div>
       )}
     </div>

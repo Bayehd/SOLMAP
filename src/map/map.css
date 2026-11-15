@@ -94,6 +94,9 @@
 .map-app .probe { left: 50%; transform: translateX(-50%); bottom: 32px; min-width: 260px; padding-right: 32px; }
 .probe dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
 .probe dt { color: var(--muted); }
+.probe-spot { max-width: 340px; margin-bottom: 8px; }
+.probe-spot h3 { margin: 0 0 4px; font-size: 15px; }
+.probe-spot p { margin: 0 0 4px; font-size: 13px; }
 .probe dd { margin: 0; }
 .probe .close { all: unset; cursor: pointer; position: absolute; top: 4px; right: 10px; font-size: 18px; color: var(--muted); }
 @media (max-width: 640px) {
