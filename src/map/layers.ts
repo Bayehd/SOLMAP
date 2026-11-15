@@ -291,7 +291,7 @@ export function layersFor(site: Site): LayerDef[] {
           outFields: ['*'],
           elevationInfo: { mode: 'on-the-ground' },
           renderer: new SimpleRenderer({
-            symbol: { type: 'simple-marker', style: 'circle', size: 11, color: [...SPOT_COLOR], outline: { color: 'white', width: 1.5 } },
+            symbol: { type: 'simple-marker', style: 'circle', size: 6, color: [...SPOT_COLOR], outline: { color: 'white', width: 0.75 } },
           }),
         }),
     },

@@ -134,7 +134,6 @@ export function MapApp({
   const [panelOpen, setPanelOpen] = useState(false);
   const [infoId, setInfoId] = useState<string | null>(null); // the layer whose source card is open
   const [routeOpen, setRouteOpen] = useState(false);
-  const [creditsOpen, setCreditsOpen] = useState(false); // the 3D models' credits, from the © button // the safest-route panel, from the Route button // the layer list opens from the layers icon
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
   const [riding, setRiding] = useState(false); // in the Rover view, on the rover (after the camera has flown down)
   // Rover view, camera off the rover: a board is up, or the view was moved by hand. The camera stays where it is (no
@@ -180,6 +179,11 @@ export function MapApp({
   const planner = useRoutePlanner(routeLayer, layers, site);
   const plannerRef = useRef(planner);
   plannerRef.current = planner;
+  // A planned safest route takes the traverse's place: the rover drives it (▶, a click on it, the Rover view) and the
+  // traverse is hidden until the route is cleared.
+  const plannedPath = planner.plan?.safest?.path ?? null;
+  const plannedRef = useRef(plannedPath);
+  plannedRef.current = plannedPath;
 
   // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
@@ -193,8 +197,13 @@ export function MapApp({
     // The bottom layer of the stack stays on the ground.
     const ground = groundLayerOf(defs.filter((l) => visibility[l.id]).map((l) => l.id));
     for (const def of defs)
-      layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id) && def.id !== ground);
-  }, [visibility, layers, cameraView, defs, site, routeLayer]);
+      layers[def.id].visible =
+        visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id) && def.id !== ground) && !(def.id === 'traverse' && plannedPath);
+  }, [visibility, layers, cameraView, defs, site, routeLayer, plannedPath]);
+
+  useEffect(() => {
+    roverRef.current?.setRoute(plannedPath);
+  }, [plannedPath]);
 
   useEffect(() => {
     const view = new SceneView({
@@ -276,7 +285,7 @@ export function MapApp({
       // In the map views, a click on the rover's route (not on a point on it) moves the rover there; ▶ drives on from there.
       const rover = roverRef.current;
       const onRoute = rover && showRoverRef.current && cameraViewRef.current !== 'rover' ? rover.nearestOnRoute(point.x, point.y) : null;
-      if (onRoute && rover && layers['traverse']?.visible) {
+      if (onRoute && rover && (layers['traverse']?.visible || plannedRef.current)) {
         // ROUTE_CLICK_PX on screen around the click, in meters.
         const side = view.toMap({ x: event.x + ROUTE_CLICK_PX, y: event.y });
         const m = side
@@ -597,8 +606,16 @@ export function MapApp({
           </button>
         )}
         {cameraView === 'rover' && (
-          <span className="drive-km" aria-live="off">
-            {drive.km.toFixed(2)} / {drive.totalKm.toFixed(1)} km
+          // How much of the route is driven, as a bar filled in red-brown.
+          <span
+            className="drive-bar"
+            role="progressbar"
+            aria-label="Route driven"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(drive.totalKm ? (100 * drive.km) / drive.totalKm : 0)}
+          >
+            <span style={{ width: `${drive.totalKm ? Math.min(100, (100 * drive.km) / drive.totalKm) : 0}%` }} />
           </span>
         )}
       </div>
@@ -638,39 +655,7 @@ export function MapApp({
             </button>
           ))}
         </div>
-        {(showRover || textureShown) && (
-          <button
-            className="credits-btn"
-            aria-expanded={creditsOpen}
-            aria-controls="model-credits"
-            aria-label="Credits"
-            title="Credits"
-            onClick={() => setCreditsOpen((o) => !o)}
-          >
-            ©
-          </button>
-        )}
       </div>
-
-      {/* The CC BY 4.0 models must be credited where they are shown: behind the © button. */}
-      {(showRover || textureShown) && creditsOpen && (
-        <p className="rover-credit" id="model-credits">
-          {textureShown && site.texture && (
-            <>
-              Terrain texture:{' '}
-              <a className="link" href={site.texture.credit.url} target="_blank" rel="noreferrer">
-                {site.texture.credit.text}
-              </a>
-              {showRover && ' · '}
-            </>
-          )}
-          {showRover && <>Rover model:{' '}
-          <a className="link" href={ROVER_CREDIT.url} target="_blank" rel="noreferrer">
-            {ROVER_CREDIT.text}
-          </a>
-          {site.rover !== 'Perseverance' && <> (Perseverance, standing in for {site.rover}: same chassis design)</>}</>}
-        </p>
-      )}
 
       {cameraView === 'side' && (
         <div className="stack-labels" aria-hidden="true">
@@ -748,6 +733,29 @@ export function MapApp({
               ))}
             </section>
           ))}
+        {/* The CC BY 4.0 models must be credited where they are shown: under the layer list, with the data sources. */}
+        {panelOpen && (showRover || textureShown) && (
+          <p className="layer-credits">
+            {textureShown && site.texture && (
+              <>
+                Terrain texture:{' '}
+                <a href={site.texture.credit.url} target="_blank" rel="noreferrer">
+                  {site.texture.credit.text} ↗
+                </a>
+              </>
+            )}
+            {textureShown && site.texture && showRover && <br />}
+            {showRover && (
+              <>
+                Rover model:{' '}
+                <a href={ROVER_CREDIT.url} target="_blank" rel="noreferrer">
+                  {ROVER_CREDIT.text} ↗
+                </a>
+                {site.rover !== 'Perseverance' && <> (standing in for {site.rover})</>}
+              </>
+            )}
+          </p>
+        )}
       </div>
       </div>
 
