@@ -17,7 +17,7 @@ export const M_PER_DEG = (MARS_RADIUS_M * Math.PI) / 180;
 export type Extent = { xmin: number; ymin: number; xmax: number; ymax: number };
 export type LonLat = { lon: number; lat: number };
 export type Limits = { cautionDeg: number; nogoDeg: number };
-export type SamplePoint = { lon: number; lat: number; name: string; number: number };
+export type SamplePoint = { lon: number; lat: number; name: string; number: number; sol?: number; kind?: string };
 
 export interface Grid {
   width: number;
@@ -49,6 +49,8 @@ export interface RouteStats {
   losPct: number | null; // % of the length with radio line of sight to the base (null if unknown)
   radiation: number | null; // mean relative modelled radiation 0..1 along the route
   samplesNear: string[]; // sample sites within the science radius
+  samplesNearList: SamplePoint[]; // the same sample sites, with their details
+  mineralM: number[]; // metres of the route within MINERAL_NEAR_M of a CRISM detection, by class value (index 0 unused)
   mineralCells: number; // cells on the route with a CRISM detection
 }
 
@@ -68,6 +70,8 @@ export interface Plan {
 }
 
 // ---------- geometry helpers ----------
+
+export const MINERAL_NEAR_M = 100;
 
 export const mPerDegLon = (lat: number) => M_PER_DEG * Math.cos((lat * Math.PI) / 180);
 
@@ -378,6 +382,8 @@ export function describeRoute(g: Grid, cells: number[], lim: Limits): RouteResul
   const W = g.width;
   let dist = 0, climb = 0, descent = 0, slopeSum = 0, slopeLen = 0, maxSlope = 0, caution = 0, nogo = 0, effort = 0;
   let losLen = 0, losKnown = 0, radSum = 0, radN = 0, minerals = 0;
+  const mineralM: number[] = new Array(9).fill(0);
+  const nr = Math.max(1, Math.round(MINERAL_NEAR_M / Math.min(g.dxM, g.dyM)));
   const profile = { distM: [] as number[], z: [] as number[], slope: [] as number[], los: [] as number[] };
   const path: [number, number][] = [];
   for (let i = 0; i < cells.length; i++) {
@@ -396,6 +402,15 @@ export function describeRoute(g: Grid, cells: number[], lim: Limits): RouteResul
       else if (s >= lim.cautionDeg) caution += step;
       if (!Number.isNaN(s)) { slopeSum += s * step; slopeLen += step; maxSlope = Math.max(maxSlope, s); }
       if (g.los[u] !== 2) { losKnown += step; if (g.los[u] === 1) losLen += step; }
+      // Which CRISM classes are mapped within MINERAL_NEAR_M of this step.
+      const seen = new Set<number>();
+      for (let rr = Math.max(0, r - nr); rr <= Math.min(g.height - 1, r + nr); rr++) {
+        for (let cc = Math.max(0, c - nr); cc <= Math.min(W - 1, c + nr); cc++) {
+          const m = g.minerals[rr * W + cc];
+          if (m > 0 && m < mineralM.length) seen.add(m);
+        }
+      }
+      for (const m of seen) mineralM[m] += step;
     }
     if (!Number.isNaN(g.rad[u])) { radSum += g.rad[u]; radN++; }
     if (g.minerals[u] > 0) minerals++;
@@ -406,13 +421,14 @@ export function describeRoute(g: Grid, cells: number[], lim: Limits): RouteResul
   }
   // Sample sites the route passes close to.
   const near: string[] = [];
+  const nearList: SamplePoint[] = [];
   for (const sm of g.samples) {
     let best = Infinity;
     for (const [lon, lat] of path) {
       const d = Math.hypot((lon - sm.lon) * mPerDegLon(sm.lat), (lat - sm.lat) * M_PER_DEG);
       if (d < best) best = d;
     }
-    if (best <= ASSUMPTIONS.scienceRadiusM) near.push(`#${sm.number} ${sm.name}`);
+    if (best <= ASSUMPTIONS.scienceRadiusM) { near.push(`#${sm.number} ${sm.name}`); nearList.push(sm); }
   }
   return {
     path,
@@ -425,6 +441,8 @@ export function describeRoute(g: Grid, cells: number[], lim: Limits): RouteResul
       losPct: g.radioBaseOk && losKnown > 0 ? (100 * losLen) / losKnown : null,
       radiation: radN ? radSum / radN : null,
       samplesNear: near,
+      samplesNearList: nearList,
+      mineralM,
       mineralCells: minerals,
     },
   };

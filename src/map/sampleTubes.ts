@@ -118,27 +118,45 @@ async function drawBoard(samples: SampleTube[], entries: (Entry | null)[], route
   const font = (px: number, weight = 400) => (ctx.font = `${weight} ${px}px system-ui, -apple-system, Segoe UI, sans-serif`);
   ctx.fillStyle = '#f2ede8';
   font(52, 700);
-  ctx.fillText(samples.map((s) => `#${s.number} ${s.name}`).join(' · '), pad, pad + 44);
+  ctx.fillText(samples.map((s) => s.name).join(' · '), pad, pad + 44);
   font(28);
   ctx.fillStyle = '#c9bfb5';
   const s0 = samples[0];
   ctx.fillText(samples.map((s) => `${s.kind}, sealed sol ${s.sol}`).join(' · '), pad, pad + 90);
   ctx.fillText(formatLatLon(s0.lat, s0.lon, 4), pad, pad + 126);
 
-  // Image (the first sample at this stop that has one).
-  const imgBox = { x: pad, y: pad + 156, w: W - 2 * pad, h: Math.round(H * 0.42) };
-  const entry = entries.find((e) => e?.image);
-  const img = entry?.image ? await loadImage(entry.image) : null;
-  if (img) {
-    const s = Math.max(imgBox.w / img.width, imgBox.h / img.height); // cover
-    const sw = imgBox.w / s;
-    const sh = imgBox.h / s;
-    ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, imgBox.x, imgBox.y, imgBox.w, imgBox.h);
-    if (entry?.imageCaption) {
-      font(20);
-      ctx.fillStyle = '#c9bfb5';
-      ctx.fillText(entry.imageCaption, imgBox.x, imgBox.y + imgBox.h + 26);
-    }
+  // Images: up to two samples at this stop that have one, side by side (the twins of a pair show both cores).
+  const imgBox = { x: pad, y: pad + 156, w: W - 2 * pad, h: Math.round(H * 0.37) };
+  const withImage = entries.filter((e): e is Entry => !!e?.image).slice(0, 2);
+  const loaded = await Promise.all(withImage.map((e) => loadImage(e.image!)));
+  const shown = withImage.map((e, i) => ({ entry: e, img: loaded[i] })).filter((x) => x.img);
+  if (shown.length) {
+    const gap = 16;
+    const cellW = (imgBox.w - gap * (shown.length - 1)) / shown.length;
+    shown.forEach(({ entry, img }, i) => {
+      const x0 = imgBox.x + i * (cellW + gap);
+      ctx.fillStyle = 'rgba(20, 16, 13, 0.6)';
+      ctx.fillRect(x0, imgBox.y, cellW, imgBox.h);
+      // Fill the box when little is cut off; otherwise show the whole picture inside it.
+      const cover = Math.max(cellW / img!.width, imgBox.h / img!.height);
+      const contain = Math.min(cellW / img!.width, imgBox.h / img!.height);
+      const k = contain / cover >= 0.75 ? cover : contain;
+      const dw = img!.width * k;
+      const dh = img!.height * k;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, imgBox.y, cellW, imgBox.h);
+      ctx.clip();
+      ctx.drawImage(img!, x0 + (cellW - dw) / 2, imgBox.y + (imgBox.h - dh) / 2, dw, dh);
+      ctx.restore();
+      if (entry.imageCaption) {
+        font(18);
+        ctx.fillStyle = '#c9bfb5';
+        let cap = entry.imageCaption;
+        while (cap.length > 4 && ctx.measureText(cap).width > cellW) cap = cap.slice(0, -2).trimEnd() + '…';
+        ctx.fillText(cap, x0, imgBox.y + imgBox.h + 24);
+      }
+    });
   } else {
     ctx.setLineDash([12, 10]);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
@@ -152,20 +170,19 @@ async function drawBoard(samples: SampleTube[], entries: (Entry | null)[], route
   }
 
   // Bottom: description on the left, small map on the right.
-  const top = imgBox.y + imgBox.h + 50;
+  const top = imgBox.y + imgBox.h + 56;
   const mapS = H - top - pad - 10;
   const textW = W - 3 * pad - mapS;
-  font(28);
+  font(26);
   ctx.fillStyle = '#f2ede8';
-  const text = samples
-    .map((s, i) => entries[i]?.text?.trim() ? (samples.length > 1 ? `${s.name}: ` : '') + entries[i]!.text!.trim() : '')
-    .filter(Boolean)
-    .join('\n\n');
+  // One description per stop. If the twins each have their own text, label them by name.
+  const texts = samples.map((s, i) => ({ name: s.name, t: entries[i]?.text?.trim() ?? '' })).filter((x) => x.t);
+  const text = texts.map((x) => (texts.length > 1 ? `${x.name}: ` : '') + x.t).join('\n\n');
   let y = top + 10;
   for (const line of wrap(ctx, text || 'No description yet.', textW)) {
-    if (y > H - pad - 30) break;
+    if (y > H - pad - 20) break;
     ctx.fillText(line, pad, y);
-    y += line ? 38 : 18;
+    y += line ? 34 : 16;
   }
 
   const mx0 = W - pad - mapS;

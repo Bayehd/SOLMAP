@@ -1,155 +1,155 @@
 {
-  "about": "Information shown on each sample's board (click a sample tube on the map). Keyed by sample number. \"image\": a path under public/ (e.g. \"data/jezero/boards/roubion.jpg\") or a URL; \"imageCaption\": credit or caption under it; \"text\": the description (blank lines start new paragraphs). Leave a field empty to hide it. \"name\" is only a reminder; the map uses the NASA sample list.",
+  "about": "Information shown on each sample's board (click a sample tube on the map). Keyed by sample number. \"image\": a path under public/ (e.g. \"data/jezero/boards/roubion.jpg\") or a URL; \"imageCaption\": credit or caption under it; \"text\": the description (blank lines start new paragraphs). Leave a field empty to hide it. \"name\" is only a reminder; the map uses the NASA sample list. Pairs from the same spot share one description: it is written in the first sample's entry, and the twin's text is left empty.",
   "samples": {
     "1": {
       "name": "Roubion",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/roubion.jpg",
+      "imageCaption": "Roubion site (Mastcam-Z) · NASA/JPL-Caltech",
+      "text": "The rover's first sampling try: the weathered rock crumbled, so the tube holds Martian air instead of rock. It is the first atmosphere sample, and a lesson to pick intact, less-pitted rock."
     },
     "2": {
       "name": "Montdenier",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/montdenier.jpg",
+      "imageCaption": "Montdenier core · NASA/JPL-Caltech",
+      "text": "Two cores from one loose boulder on Artuby ridge, the first successful rock cores. They stand for the main crater-floor rock, less weathered here. Brace on bedrock: the boulder shifted while drilling."
     },
     "3": {
       "name": "Montagnac",
-      "image": "",
-      "imageCaption": "",
+      "image": "data/jezero/boards/montagnac.jpg",
+      "imageCaption": "Montagnac core · NASA/JPL-Caltech",
       "text": ""
     },
     "4": {
       "name": "Salette",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/salette.jpg",
+      "imageCaption": "Salette core · NASA/JPL-Caltech",
+      "text": "Twin cores of coarse, olivine-rich rock in Séítah, the lowest and oldest rock on the crater floor. The crystals show to the naked eye, and it may link to a huge olivine-rich unit across the region."
     },
     "5": {
       "name": "Coulettes",
-      "image": "",
-      "imageCaption": "",
+      "image": "data/jezero/boards/coulettes.jpg",
+      "imageCaption": "Coulettes core · NASA/JPL-Caltech",
       "text": ""
     },
     "6": {
       "name": "Robine",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/robine.jpg",
+      "imageCaption": "Robine core · NASA/JPL-Caltech",
+      "text": "Twin cores from layered bedrock in Séítah, near where it meets the crater-floor lavas above. Cores here can break apart, so a crew should plan a backup attempt."
     },
     "7": {
       "name": "Malay",
-      "image": "",
-      "imageCaption": "",
+      "image": "data/jezero/boards/malay.jpg",
+      "imageCaption": "Malay core · NASA/JPL-Caltech",
       "text": ""
     },
     "8": {
       "name": "Ha'ahóni",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/hahonih.jpg",
+      "imageCaption": "Ha'ahóni core · NASA/JPL-Caltech",
+      "text": "Two cores from the boulder Sid, only about 100 m from the landing site: the least altered crater-floor rock, key to dating the floor. It is very hard, so expect slow drilling and bit wear."
     },
     "9": {
       "name": "Atsá",
-      "image": "",
-      "imageCaption": "",
+      "image": "data/jezero/boards/atsah.jpg",
+      "imageCaption": "Atsá drill hole (WATSON) · NASA/JPL-Caltech",
       "text": ""
     },
     "10": {
       "name": "Swift Run",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/swift-run.jpg",
+      "imageCaption": "Swift Run core · NASA/JPL-Caltech",
+      "text": "Twin sandstone cores from Hawksbill Gap, where the river delta met the lake. Grains washed in from a wide area, so one core samples many rock types, with cement that likely formed in water."
     },
     "11": {
       "name": "Skyland",
-      "image": "",
-      "imageCaption": "",
+      "image": "data/jezero/boards/skyland.jpg",
+      "imageCaption": "Skyland core · NASA/JPL-Caltech",
       "text": ""
     },
     "12": {
       "name": "Hazeltop",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/hazeltop.jpg",
+      "imageCaption": "Hazeltop core · NASA/JPL-Caltech",
+      "text": "Twin cores of fine lake mudstone rich in sulfate salts and clays, among the best rock for preserving signs of past life. A top-priority target in the search for ancient life."
     },
     "13": {
       "name": "Bearwallow",
-      "image": "",
-      "imageCaption": "",
+      "image": "data/jezero/boards/bearwallow.jpg",
+      "imageCaption": "Bearwallow core · NASA/JPL-Caltech",
       "text": ""
     },
     "14": {
       "name": "Shuyak",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/shuyak.jpg",
+      "imageCaption": "Shuyak core · NASA/JPL-Caltech",
+      "text": "Twin cores of olivine-rich lake mudstone at Cape Nukshak, where water partly turned the olivine into serpentine. Shuyak also holds traces of dating minerals such as zircon."
     },
     "15": {
       "name": "Mageik",
-      "image": "",
-      "imageCaption": "",
+      "image": "data/jezero/boards/mageik.jpg",
+      "imageCaption": "Mageik core · NASA/JPL-Caltech",
       "text": ""
     },
     "16": {
       "name": "Kukaklek",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/kukaklek.jpg",
+      "imageCaption": "Kukaklek core · NASA/JPL-Caltech",
+      "text": "Sulfate-rich lake-floor sandstone with calcium sulfate veins at Cape Nukshak. Another strong candidate for preserved signs of past life, with signals consistent with a mix of organic compounds."
     },
     "17": {
       "name": "Atmo Mountain",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/atmo-mountain.jpg",
+      "imageCaption": "Atmo Mountain soil · NASA/JPL-Caltech",
+      "text": "Loose soil from one wind-built megaripple: the sand and dust a crew walks on and carries back on suits and tools. Expect soft footing, with a coarse crust over finer sand."
     },
     "18": {
       "name": "Crosswind Lake",
-      "image": "",
-      "imageCaption": "",
+      "image": "data/jezero/boards/crosswind-lake.jpg",
+      "imageCaption": "Crosswind Lake soil · NASA/JPL-Caltech",
       "text": ""
     },
     "19": {
       "name": "Melyn",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/melyn.jpg",
+      "imageCaption": "Melyn core · NASA/JPL-Caltech",
+      "text": "The first sample from the top of the delta: river sandstone that records the river which fed the lake. It sits about 120 m higher than the landing site."
     },
     "20": {
       "name": "Otis Peak",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/otis-peak.jpg",
+      "imageCaption": "Otis Peak core · NASA/JPL-Caltech",
+      "text": "River gravel cemented into rock, holding pebbles from many source rocks. It carries the first iron phosphate found in Jezero."
     },
     "21": {
       "name": "Pilot Mountain",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/pilot-mountain.jpg",
+      "imageCaption": "Pilot Mountain core · NASA/JPL-Caltech",
+      "text": "Poorly sorted river sandstone with carbonate cement, sampling the blocky river deposits on top of the fan. An earlier try on a boulder failed, so boulders make poor drilling targets."
     },
     "22": {
       "name": "Pelican Point",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/pelican-point.jpg",
+      "imageCaption": "Pelican Point site (Navcam) · NASA/JPL-Caltech",
+      "text": "The first Margin sample, from the carbonate-rich strip by the crater rim that may mark an old lake shore. The outcrop is dusty, light-toned, fractured sandstone altered by water."
     },
     "23": {
       "name": "Lefroy Bay",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/lefroy-bay.jpg",
+      "imageCaption": "Lefroy Bay core · NASA/JPL-Caltech",
+      "text": "Chosen because orbiters saw a strong carbonate signal here. Carbonates form in water and can hold climate records."
     },
     "24": {
       "name": "Comet Geyser",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/comet-geyser.jpg",
+      "imageCaption": "Comet Geyser core · NASA/JPL-Caltech",
+      "text": "The most altered Margin sample, rich in carbonate and silica: a strong record of water reacting with rock."
     },
     "25": {
       "name": "Sapphire Canyon",
-      "image": "",
-      "imageCaption": "",
-      "text": ""
+      "image": "data/jezero/boards/sapphire-canyon.jpg",
+      "imageCaption": "Beaver Falls workspace (Mastcam-Z) · NASA/JPL-Caltech",
+      "text": "Clay-rich rock cut by white veins and marked with pale \"leopard spots\" that may have formed through reactions microbes can also drive. With organic carbon detected, it is the collection's leading potential biosignature."
     },
     "26": {
       "name": "Silver Mountain",

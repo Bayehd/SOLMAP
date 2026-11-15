@@ -10,9 +10,11 @@ import Point from '@arcgis/core/geometry/Point';
 import { watch, whenOnce } from '@arcgis/core/core/reactiveUtils';
 import SceneView from '@arcgis/core/views/SceneView';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
+import Graphic from '@arcgis/core/Graphic';
 import { RoutePanel } from '../route/RoutePanel';
 import { LayerLegend, hasLegend } from './MapLegend';
 import { useRoutePlanner } from '../route/useRoutePlanner';
+import type { RouteResult } from '../route/planner';
 import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSampleTubes } from './sampleTubes';
@@ -84,6 +86,10 @@ const ROVER_CLIP_NEAR_M = 0.5; // draw the ground from this close to the camera
 const ROVER_CLIP_FAR_M = 400_000; // to the horizon and the crater rims
 const ROUTE_CLICK_PX = 10; // a click this close to the route line (on screen) moves the rover there
 const ROUTE_CLICK_MIN_M = 15;
+const TAKEOFF_CAM_UP_M = 25; // Rover view take-off: the camera pulls back to this height above the rover...
+const TAKEOFF_TILT = 62; // ...looking down at it at this tilt (degrees from straight down)
+const RISE_AHEAD_M = 12; // "Return to Earth" stands on the ground this far past the end of the route
+const PAD_SCORCH = [{ size: 74, alpha: 0.15 }, { size: 52, alpha: 0.2 }, { size: 32, alpha: 0.28 }]; // take-off scorch circle (pt on screen)
 const BOARD_FOV = 60; // degrees: a normal lens while a sample board is up, so it isn't stretched (driving restores ROVER_FOV)
 
 
@@ -112,8 +118,9 @@ export function MapApp({
   showRover?: boolean;
   /** Filled while the 3D view is up, for the landing animation. */
   roverControl?: RefObject<RoverControl | null>;
-  /** "Go to Earth" was clicked. pad = screen position of the rover, or null if it is off screen. */
-  onTravel?: (pad: { x: number; y: number } | null) => void;
+  /** "Return to Earth" was clicked (Rover view, end of the route). pad = screen position of the rover, or null if it is off
+   * screen; route = the route chosen in the planner, for the mission report on Earth. */
+  onTravel?: (pad: { x: number; y: number } | null, route: RouteResult | null) => void;
   canTravel?: boolean;
 }) {
   const roverControlRef = useRef(roverControl);
@@ -547,6 +554,9 @@ export function MapApp({
   };
 
 
+  // "Return to Earth" appears once the rover has driven to the end of its route.
+  const atRouteEnd = drive.ready && drive.totalKm > 0 && drive.km >= drive.totalKm - 0.001;
+
   // The rocket takes off from wherever the rover is (the landing site until it has driven).
   const goEarth = async () => {
     const view = viewRef.current;
@@ -558,8 +568,81 @@ export function MapApp({
     const pad = new Point({ x: lon, y: lat, z: ground, spatialReference: marsSR() });
     const p = view?.toScreen(pad);
     const onScreen = p && view && p.x > 0 && p.y > 0 && p.x < view.width && p.y < view.height;
-    onTravel?.(onScreen ? { x: p.x, y: p.y } : null);
+    onTravel?.(onScreen ? { x: p.x, y: p.y } : null, plannerRef.current.plan?.safest ?? null); // the route chosen in the planner goes into the Earth report
   };
+
+  // Rover view take-off: the camera leaves the rover and pulls back behind it, so the rover shows on screen, then the
+  // rocket stands on it and lifts off as from the other views.
+  const [leaving, setLeaving] = useState(false);
+  const takeOff = async () => {
+    const view = viewRef.current;
+    const rover = roverRef.current;
+    if (!view || !rover) return;
+    setLeaving(true);
+    const p = rover.pose();
+    // A dark scorch circle where the rocket will stand: round on screen (not laid flat in perspective), a soft rim
+    // around a darker middle.
+    const pad = new Point({ x: p.lon, y: p.lat, spatialReference: marsSR() });
+    view.graphics.addMany(
+      PAD_SCORCH.map(
+        ({ size, alpha }) => new Graphic({ geometry: pad, symbol: { type: 'simple-marker', style: 'circle', size, color: [20, 14, 10, alpha], outline: { width: 0 } } }),
+      ),
+    );
+    view.camera = normalLens(view.camera);
+    setCameraView('3d'); // shows the rover model again; the camera is moved here, not by showView
+    const h = (p.travelHeading * Math.PI) / 180;
+    const back = TAKEOFF_CAM_UP_M * Math.tan((TAKEOFF_TILT * Math.PI) / 180); // horizontal distance behind the rover
+    const lon = p.lon - (back * Math.sin(h)) / (METERS_PER_DEGREE * Math.cos((p.lat * Math.PI) / 180));
+    const lat = p.lat - (back * Math.cos(h)) / METERS_PER_DEGREE;
+    const z = (p.groundZ ?? site.landingElevationM) + TAKEOFF_CAM_UP_M;
+    await view
+      .goTo(new Camera({ position: new Point({ x: lon, y: lat, z, spatialReference: marsSR() }), heading: p.travelHeading, tilt: TAKEOFF_TILT }), {
+        duration: 2500,
+        easing: 'cubic-in-out',
+      })
+      .catch(() => {});
+    await goEarth();
+  };
+
+  // "Return to Earth" stands on the ground RISE_AHEAD_M past the end of the route; its screen spot follows the camera.
+  const showRise = atRouteEnd && cameraView === 'rover' && !leaving;
+  const riseRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const view = viewRef.current;
+    const rover = roverRef.current;
+    if (!showRise || !view || !rover) return;
+    const p = rover.pose();
+    const h = (p.travelHeading * Math.PI) / 180;
+    const x = p.lon + (RISE_AHEAD_M * Math.sin(h)) / (METERS_PER_DEGREE * Math.cos((p.lat * Math.PI) / 180));
+    const y = p.lat + (RISE_AHEAD_M * Math.cos(h)) / METERS_PER_DEGREE;
+    const groundAt = () => {
+      const z = (view.groundView?.elevationSampler?.queryElevation(new Point({ x, y, spatialReference: marsSR() })) as Point | null | undefined)?.z;
+      return typeof z === 'number' && Math.abs(z) < 30_000 ? z : (p.groundZ ?? site.landingElevationM);
+    };
+    const place = () => {
+      const el = riseRef.current;
+      if (!el) return;
+      const spot = new Point({ x, y, z: groundAt(), spatialReference: marsSR() });
+      const s = view.toScreen(spot);
+      // Hidden when the spot is behind the camera (it would project mirrored) or off screen.
+      const cam = view.camera.position;
+      const bearing = (Math.atan2((x - cam.x) * Math.cos((y * Math.PI) / 180), y - cam.y) * 180) / Math.PI;
+      const ahead = Math.abs(((bearing - view.camera.heading + 540) % 360) - 180) < 80;
+      const on = !!s && ahead && s.x > -200 && s.y > 0 && s.x < view.width + 200 && s.y < view.height + 100;
+      el.style.visibility = on ? 'visible' : 'hidden';
+      if (s) {
+        el.style.left = `${s.x}px`;
+        el.style.top = `${s.y}px`;
+      }
+    };
+    place();
+    const moved = watch(() => view.camera, place);
+    const loaded = watch(() => view.updating, place); // finer terrain changes the ground height
+    return () => {
+      moved.remove();
+      loaded.remove();
+    };
+  }, [showRise, site]);
 
   return (
     <div className="map-app">
@@ -567,16 +650,6 @@ export function MapApp({
 
       <div className="map-left">
       <div className="map-toolbar">
-        {cameraView !== 'rover' && (
-          <button className="btn" onClick={goEarth} disabled={!canTravel} aria-label="Go to Earth" title="Go to Earth">
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              {/* a globe: outline, meridian and parallels */}
-              <circle cx="12" cy="12" r="9" />
-              <ellipse cx="12" cy="12" rx="4" ry="9" />
-              <path d="M3 12h18M4.5 7.5h15M4.5 16.5h15" />
-            </svg>
-          </button>
-        )}
         {showRover && (
           <button
             className="btn play-btn"
@@ -638,6 +711,19 @@ export function MapApp({
             };
           })()}
         />
+      )}
+
+      {/* Rover view, end of the route: "Return to Earth" rises out of the ground ahead, with a round take-off button.
+          It stands at a fixed spot on the ground (placed by the effect above), so it stays there as the camera moves. */}
+      {showRise && (
+        <div className="earth-rise" ref={riseRef}>
+          <span className="earth-rise-text" aria-hidden="true">Return to Earth</span>
+          <button className="earth-rise-btn" onClick={takeOff} disabled={!canTravel} aria-label="Return to Earth" title="Take off for Earth">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor">
+              <path d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10l-6.9-6.43-1.93.51 4.14 7.17-4.97 1.33-1.97-1.54-1.45.39 2.59 4.49L21 11.49c.81-.23 1.28-1.05 1.07-1.85z" />
+            </svg>
+          </button>
+        </div>
       )}
 
       {/* Camera views, bottom left (▶ and the route stay at the top left). */}

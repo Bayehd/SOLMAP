@@ -3,7 +3,7 @@
 .map-app .panel { position: absolute; color: var(--text); }
 .map-app .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 8px; }
 .map-app .link { color: var(--accent); }
-.map-app .map-left { position: absolute; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; }
+.map-app .map-left { position: absolute; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 100px); overflow-y: auto; }
 .map-app .map-left .panel { position: static; }
 .map-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .map-toolbar .btn { backdrop-filter: blur(6px); }
@@ -19,13 +19,26 @@
 .map-toolbar .btn:hover:not(:disabled) { background: #e4e0db; border-color: transparent; }
 .map-toolbar .btn[aria-pressed="true"] { color: #fff; background: #b8432b; border-color: transparent; }
 .map-toolbar .btn[aria-pressed="true"]:hover:not(:disabled) { background: #c9503a; }
-/* The top-left buttons (Earth, ▶, route) are a little see-through; solid again on hover. */
+/* The top-left buttons (▶, route) are a little see-through; solid again on hover. */
 .map-left .map-toolbar .btn { background: rgba(207, 202, 196, 0.7); }
 .map-left .map-toolbar .btn[aria-pressed="true"] { background: rgba(184, 67, 43, 0.8); }
 .map-left .map-toolbar .btn:hover:not(:disabled) { background: #e4e0db; }
 .map-left .map-toolbar .btn[aria-pressed="true"]:hover:not(:disabled) { background: #c9503a; }
 .map-toolbar .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .play-btn { min-width: 40px; text-align: center; }
+/* Rover view: the words rise out of the ground at a fixed spot (their bottom edge clips them from below), then the round button pops in. */
+.earth-rise { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -100%); /* left/top: the ground spot, set from the map */ display: flex; align-items: center; gap: 14px;
+  overflow: hidden; padding: 6px 8px 2px; pointer-events: none; }
+.earth-rise-text { display: block; font-size: clamp(22px, 3.2vw, 36px); font-weight: 700; letter-spacing: 0.04em; color: #fff; white-space: nowrap;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.7), 0 0 18px rgba(0,0,0,0.45); animation: earth-rise 1.4s cubic-bezier(.2,.7,.2,1) both; }
+.earth-rise-btn { all: unset; box-sizing: border-box; pointer-events: auto; cursor: pointer; display: grid; place-items: center; width: 46px; height: 46px;
+  border-radius: 50%; color: #fff; background: #b8432b; box-shadow: 0 2px 10px rgba(0,0,0,0.5); transition: background 0.15s;
+  animation: earth-rise 1.4s cubic-bezier(.2,.7,.2,1) 0.5s both; }
+.earth-rise-btn:hover:not(:disabled) { background: #c9503a; }
+.earth-rise-btn:disabled { opacity: 0.6; cursor: default; }
+.earth-rise-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@keyframes earth-rise { from { transform: translateY(120%); opacity: 0; } 60% { opacity: 1; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .earth-rise-text, .earth-rise-btn { animation: none; } }
 .drive-bar { align-self: center; width: 180px; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(207, 202, 196, 0.75); }
 .drive-bar > span { display: block; height: 100%; background: #b8432b; border-radius: inherit; }
 .rover-front { position: absolute; height: auto; max-width: none; pointer-events: none; user-select: none; }
@@ -51,11 +64,12 @@
 .panel-toggle[aria-expanded="false"]::after { content: " ▸"; }
 .layers-icon {
   all: unset; box-sizing: border-box; cursor: pointer; display: grid; place-items: center; width: 44px; height: 44px;
-  border-radius: 10px; color: #1d1a17; background: rgba(207, 202, 196, 0.7); border: 1px solid transparent; /* grey, like the toolbar buttons */
+  border-radius: 10px; color: #1d1a17; background: rgba(207, 202, 196, 0.7); border: 1px solid transparent;
   transition: background 0.15s, color 0.15s;
 }
 .layers-icon:hover { background: #e4e0db; }
-.layers-icon[aria-expanded="true"] { color: #fff; background: #b8432b; }
+.layers-icon[aria-expanded="true"] { color: #fff; background: rgba(184, 67, 43, 0.8); border-color: transparent; }
+.layers-icon[aria-expanded="true"]:hover { background: #c9503a; }
 .layers-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .layer-list { margin-top: 8px; padding: 4px 10px 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(4px) brightness(1.15); box-sizing: border-box; max-height: calc(100vh - 300px); overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; align-items: flex-end; scrollbar-width: thin; }
 .layer-panel section { margin-top: 10px; width: 100%; display: flex; flex-direction: column; gap: 0; }
@@ -143,23 +157,60 @@
 .route-panel .rp-title { margin: 0; font-size: 14px; font-weight: 600; }
 .route-panel .rp-body { margin-top: 8px; display: grid; gap: 8px; }
 .route-panel h3 { margin: 6px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-.rp-points { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
-.rp-clear { justify-self: start; }
 .rp-warn { color: #f5a623; margin: 0; }
 .rp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .rp-table th { text-align: left; font-weight: 600; padding: 2px 4px; }
 .rp-table td { padding: 3px 4px; border-top: 1px solid var(--panel-border); }
 .rp-table td:first-child { color: var(--muted); }
-.rp-key { display: inline-block; width: 14px; height: 0; border-top: 3px solid #3cdcff; margin-right: 5px; vertical-align: middle; }
-.rp-key-direct { border-top: 2px dashed #ccc; }
+.rp-key { display: inline-block; width: 14px; height: 0; border-top: 3px solid #fff; margin-right: 5px; vertical-align: middle; box-shadow: 0 0 0 1px rgba(29, 26, 23, 0.6); }
+.rp-key-direct { border-top: 2px dashed #4a443d; }
 .rp-profile { width: 100%; background: #0b0b0d; border: 1px solid var(--panel-border); border-radius: 6px; }
 .rp-svgtext { fill: #9a9a9f; font-size: 8px; }
-.rp-slider { display: grid; gap: 2px; font-size: 12px; }
 .rp-assume ul { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; }
-.rp-assume summary { cursor: pointer; font-size: 12px; color: var(--muted); }
-.rp-sliders { display: grid; gap: 8px; margin-top: 8px; }
 
 /* Route panel: what the rover measured at the site (Gale: RAD and REMS). */
 .rp-measured { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; margin: 6px 0; }
 .rp-measured dt { color: var(--muted); }
 .rp-measured dd { margin: 0; }
+
+/* Route panel: the light grey of the buttons and layer icon, more see-through, with dark text. */
+.map-app .route-panel {
+  --text: #1d1a17; --muted: #4a443d; --accent: #8a2f1c; --panel-border: rgba(29, 26, 23, 0.16);
+  color: var(--text); background: rgba(207, 202, 196, 0.35); border-color: rgba(255, 255, 255, 0.25); backdrop-filter: blur(10px);
+}
+.route-panel .rp-warn { color: #8a4b00; }
+/* Start and end side by side, like a maps app. */
+.rp-points { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.rp-point {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.35); border: 1px solid rgba(29, 26, 23, 0.12);
+}
+.rp-point:hover { background: rgba(255, 255, 255, 0.55); }
+.rp-point:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rp-point[aria-pressed="true"] { border-color: #b8432b; background: rgba(184, 67, 43, 0.18); }
+.rp-point-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #fff; border: 2px solid #1d1a17; }
+.rp-point[data-which="end"] .rp-point-dot { background: #b8432b; border-color: #fff; }
+.rp-point-text { display: grid; min-width: 0; }
+.rp-point-label { font-size: 11px; color: var(--muted); }
+.rp-point-value { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-clear { all: unset; cursor: pointer; justify-self: end; font-size: 11px; color: var(--muted); margin-top: -4px; }
+.rp-clear:hover { color: var(--text); }
+.rp-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Filters: sliders drawn like the red route-driven bar. */
+.rp-filters { display: grid; gap: 7px; }
+.rp-slider { display: grid; gap: 3px; font-size: 12px; }
+.rp-slider input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px; margin: 4px 0; border-radius: 2px; cursor: pointer;
+  background: linear-gradient(to right, #b8432b var(--pct, 0%), rgba(29, 26, 23, 0.18) var(--pct, 0%));
+}
+.rp-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #b8432b; border: none; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.rp-slider input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #b8432b; border: none; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+.rp-slider input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Measured and assumptions: small, folded extra info at the bottom. */
+.rp-assume summary { cursor: pointer; font-size: 11px; color: var(--muted); }
+.rp-assume ul, .rp-assume .small { font-size: 11px; }
+/* Elevation profile: no background, black axes, red line. */
+.rp-elev { width: 100%; display: block; overflow: visible; }
+.rp-elev-text { fill: #000; font-size: 8px; }
