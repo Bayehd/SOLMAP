@@ -104,6 +104,11 @@ async function loadRoute(file: string): Promise<Route> {
       if (!last || last[0] !== c[0] || last[1] !== c[1]) pts.push(c);
     }
   }
+  return routeOf(pts);
+}
+
+/** A route from [lon, lat] points in driving order. */
+function routeOf(pts: number[][]): Route {
   const lon = new Float64Array(pts.length);
   const lat = new Float64Array(pts.length);
   const dist = new Float64Array(pts.length);
@@ -165,6 +170,8 @@ export function attachRover(
   nearestOnRoute(lon: number, lat: number): { distM: number; offM: number } | null;
   /** Put the rover at distM along the route (driving, if it is, goes on from there). */
   jumpTo(distM: number): void;
+  /** Drive this path ([lon, lat] points, start first) instead of the traverse; null: back to the traverse. The rover stops and goes to its start. */
+  setRoute(path: [number, number][] | null): void;
   remove(): void;
 } {
   const graphic = layer.graphics.getItemAt(0)!;
@@ -201,6 +208,8 @@ export function attachRover(
 
   // ---------- Driving ----------
   let route: Route | null = null;
+  let traverse: Route | null = null; // the site's traverse, the default route
+  let custom: Route | null = null; // a planned route that replaces it (setRoute)
   let s = 0; // meters driven
   let playing = false;
   let raf = 0;
@@ -224,9 +233,11 @@ export function attachRover(
     ground
       .queryElevation(new Multipoint({ points, spatialReference: marsSR() }))
       .then((res) => {
-        if (!removed) profile = Float64Array.from((res.geometry as Multipoint).points, (p) => p[2]);
+        if (!removed && route === r) profile = Float64Array.from((res.geometry as Multipoint).points, (p) => p[2]);
       })
-      .catch(() => (profileLoading = false));
+      .catch(() => {
+        if (route === r) profileLoading = false;
+      });
   };
   const groundAt = (dist: number) => {
     if (!profile) return null;
@@ -251,7 +262,8 @@ export function attachRover(
   loadRoute(site.files.traverse)
     .then((r) => {
       if (removed) return;
-      route = r;
+      traverse = r;
+      if (!custom) route = r;
       report(true);
     })
     .catch(() => {});
@@ -336,6 +348,17 @@ export function attachRover(
     },
     jumpTo(distM) {
       moveTo(distM);
+      report(true);
+    },
+    setRoute(path) {
+      custom = path && path.length >= 2 ? routeOf(path) : null;
+      route = custom ?? traverse;
+      playing = false;
+      cancelAnimationFrame(raf);
+      profile = null; // the Rover view's ground heights are along the route: read again for the new one
+      profileLoading = false;
+      if (moveListener) loadProfile();
+      moveTo(0);
       report(true);
     },
     toggleDrive() {

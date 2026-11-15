@@ -54,7 +54,7 @@ npm run build
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
 | Jezero minerals (off by default) | NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node), 4 observations from 2007 | 18 m/px, smoothed to ~90 m | derived |
-| Mineral spots (Jezero) | Derived from that mineral map (`scripts/build_jezero_mineral_spots.py`): the largest patches of each mineral within 1.5 km of the rover's route, up to 3 per mineral; dark red-brown points in the map views, pins in the Rover view; click a point for a short note, a pin for a (wider) board like the samples' | 9 spots | derived |
+| Mineral spots (Jezero) | Derived from that mineral map (`scripts/build_jezero_mineral_spots.py`): the largest patches of each mineral within 1.5 km of the rover's route, up to 3 per mineral; dark red-brown points in the map views, pins in the Rover view; in the Rover view, click a pin for a (wider) board like the samples' | 9 spots | derived |
 | Perseverance traverse | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
 | Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions; in the Rover view, drawn with a 3D sample tube model | 28 sealed samples, to sol 1441 | data |
 | Sample depot (Three Forks) | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
@@ -102,7 +102,7 @@ thresholds in `CLASSES` in `scripts/build_jezero_minerals.py` and rebuild.
 **Assumption:** each sample point is the rover's parked position when the sample was sealed
 (its last drive end before the sealing sol), so it marks the workspace, not the exact borehole
 (a few meters off). Bell Island and Gallants have no sealing sol yet and are not shown. Update
-`SAMPLES` in `scripts/build_jezero_layers.py` as NASA adds samples. Click a point to see its name.
+`SAMPLES` in `scripts/build_jezero_layers.py` as NASA adds samples.
 
 **Sample tubes and boards (Rover view):** riding on the rover, each sample stop shows a 3D sample tube
 lying on the ground (`public/models/sample-tube.glb`, an illustrative model, not NASA data), with a round

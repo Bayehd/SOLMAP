@@ -13,10 +13,11 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import Graphic from '@arcgis/core/Graphic';
 import { RoutePanel } from '../route/RoutePanel';
 import { useRoutePlanner } from '../route/useRoutePlanner';
+import type { RouteResult } from '../route/planner';
 import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSampleTubes } from './sampleTubes';
-import { MINERAL_BOARD_W_M, MINERAL_NOTES, SPOT_COLOR, createMineralPins, type MineralSpot } from './mineralSpots';
+import { MINERAL_BOARD_W_M, createMineralPins } from './mineralSpots';
 import { createSiteElevationLayer } from './SiteElevationLayer';
 import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
 import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
@@ -32,10 +33,6 @@ type Probe = {
   slope: number | null; // degrees
   global: number | null; // m, MOLA 463 m
   mineral: number | null; // MINERAL_CLASSES index + 1, 0 = none
-  sample: { number: number; name: string; kind: string; sol: number } | null; // clicked sample point
-  depot: { name: string; sol: number } | null; // clicked depot tube
-  rad: { sol_start: number; sol_end: number; sols_measured: number; dose_si: number; dose_plastic: number | null } | null; // clicked RAD stop
-  spot: MineralSpot | null; // clicked mineral spot or pin
 };
 
 const initialVisibility = (defs: LayerDef[]) => Object.fromEntries(defs.map((l) => [l.id, l.visible]));
@@ -120,8 +117,9 @@ export function MapApp({
   showRover?: boolean;
   /** Filled while the 3D view is up, for the landing animation. */
   roverControl?: RefObject<RoverControl | null>;
-  /** "Return to Earth" was clicked (shown at the end of the route). pad = screen position of the rover, or null if it is off screen. */
-  onTravel?: (pad: { x: number; y: number } | null) => void;
+  /** "Return to Earth" was clicked (Rover view, end of the route). pad = screen position of the rover, or null if it is off
+   * screen; route = the route chosen in the planner, for the mission report on Earth. */
+  onTravel?: (pad: { x: number; y: number } | null, route: RouteResult | null) => void;
   canTravel?: boolean;
 }) {
   const roverControlRef = useRef(roverControl);
@@ -142,7 +140,7 @@ export function MapApp({
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [infoId, setInfoId] = useState<string | null>(null); // the layer whose source card is open
-  const [routeOpen, setRouteOpen] = useState(false); // the safest-route panel, from the Route button // the layer list opens from the layers icon
+  const [routeOpen, setRouteOpen] = useState(false);
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
   const [riding, setRiding] = useState(false); // in the Rover view, on the rover (after the camera has flown down)
   // Rover view, camera off the rover: a board is up, or the view was moved by hand. The camera stays where it is (no
@@ -188,6 +186,11 @@ export function MapApp({
   const planner = useRoutePlanner(routeLayer, layers, site);
   const plannerRef = useRef(planner);
   plannerRef.current = planner;
+  // A planned safest route takes the traverse's place: the rover drives it (▶, a click on it, the Rover view) and the
+  // traverse is hidden until the route is cleared.
+  const plannedPath = planner.plan?.safest?.path ?? null;
+  const plannedRef = useRef(plannedPath);
+  plannedRef.current = plannedPath;
 
   // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
@@ -201,8 +204,13 @@ export function MapApp({
     // The bottom layer of the stack stays on the ground.
     const ground = groundLayerOf(defs.filter((l) => visibility[l.id]).map((l) => l.id));
     for (const def of defs)
-      layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id) && def.id !== ground);
-  }, [visibility, layers, cameraView, defs, site, routeLayer]);
+      layers[def.id].visible =
+        visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id) && def.id !== ground) && !(def.id === 'traverse' && plannedPath);
+  }, [visibility, layers, cameraView, defs, site, routeLayer, plannedPath]);
+
+  useEffect(() => {
+    roverRef.current?.setRoute(plannedPath);
+  }, [plannedPath]);
 
   useEffect(() => {
     const view = new SceneView({
@@ -279,31 +287,19 @@ export function MapApp({
       };
       const pointHits = view
         .hitTest(event, { include: [layers['samples'], layers['depot'], layers['radiation'], layers['mineral-spots']].filter(Boolean) })
-        .then((h) => {
-          const attrs = (id: string) => {
-            for (const r of h.results) if (r.type === 'graphic' && r.layer === layers[id]) return r.graphic.attributes;
-            return null;
-          };
-          return {
-            sample: attrs('samples') as Probe['sample'],
-            depot: attrs('depot') as Probe['depot'],
-            rad: attrs('radiation') as Probe['rad'],
-            spot: attrs('mineral-spots') as Probe['spot'],
-          };
-        })
-        .catch(() => ({ sample: null, depot: null, rad: null, spot: null }));
+        .then((h) => h.results.some((r) => r.type === 'graphic')) // clicked a point
+        .catch(() => false);
       // In the map views, a click on the rover's route (not on a point on it) moves the rover there; ▶ drives on from there.
       const rover = roverRef.current;
       const onRoute = rover && showRoverRef.current && cameraViewRef.current !== 'rover' ? rover.nearestOnRoute(point.x, point.y) : null;
-      if (onRoute && rover && layers['traverse']?.visible) {
+      if (onRoute && rover && (layers['traverse']?.visible || plannedRef.current)) {
         // ROUTE_CLICK_PX on screen around the click, in meters.
         const side = view.toMap({ x: event.x + ROUTE_CLICK_PX, y: event.y });
         const m = side
           ? Math.hypot(((side.longitude ?? side.x) - point.x) * METERS_PER_DEGREE * Math.cos((point.y * Math.PI) / 180), ((side.latitude ?? side.y) - point.y) * METERS_PER_DEGREE)
           : 0;
         if (onRoute.offM <= Math.max(ROUTE_CLICK_MIN_M, m)) {
-          const h = await pointHits;
-          if (!(h.sample || h.depot || h.rad || h.spot)) {
+          if (!(await pointHits)) {
             rover.jumpTo(onRoute.distM);
             tubes.clearBoard();
             setBoardUp(false);
@@ -312,7 +308,12 @@ export function MapApp({
           }
         }
       }
-      const [dtm, slope, mineral, global, hits] = await Promise.all([
+      // A click on a point (sample, depot tube, RAD stop, mineral spot) shows no info box.
+      if (await pointHits) {
+        setProbe(null);
+        return;
+      }
+      const [dtm, slope, mineral, global] = await Promise.all([
         pixel('elevation'),
         pixel('slope'),
         pixel('minerals'),
@@ -320,9 +321,8 @@ export function MapApp({
           .queryElevation(point)
           .then((r) => ((r.geometry as Point).z ?? null))
           .catch(() => null),
-        pointHits,
       ]);
-      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm && layers['minerals'] ? (mineral ?? 0) : null, ...hits });
+      setProbe({ lon: point.x, lat: point.y, dtm, slope, global, mineral: inDtm && layers['minerals'] ? (mineral ?? 0) : null });
     });
 
     return () => {
@@ -567,7 +567,7 @@ export function MapApp({
     const pad = new Point({ x: lon, y: lat, z: ground, spatialReference: marsSR() });
     const p = view?.toScreen(pad);
     const onScreen = p && view && p.x > 0 && p.y > 0 && p.x < view.width && p.y < view.height;
-    onTravel?.(onScreen ? { x: p.x, y: p.y } : null);
+    onTravel?.(onScreen ? { x: p.x, y: p.y } : null, plannerRef.current.plan?.safest ?? null); // the route chosen in the planner goes into the Earth report
   };
 
   // Rover view take-off: the camera leaves the rover and pulls back behind it, so the rover shows on screen, then the
@@ -679,8 +679,16 @@ export function MapApp({
           </button>
         )}
         {cameraView === 'rover' && (
-          <span className="drive-km" aria-live="off">
-            {drive.km.toFixed(2)} / {drive.totalKm.toFixed(1)} km
+          // How much of the route is driven, as a bar filled in red-brown.
+          <span
+            className="drive-bar"
+            role="progressbar"
+            aria-label="Route driven"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(drive.totalKm ? (100 * drive.km) / drive.totalKm : 0)}
+          >
+            <span style={{ width: `${drive.totalKm ? Math.min(100, (100 * drive.km) / drive.totalKm) : 0}%` }} />
           </span>
         )}
       </div>
@@ -734,25 +742,6 @@ export function MapApp({
           ))}
         </div>
       </div>
-
-      {(showRover || textureShown) && (
-        <p className="rover-credit">
-          {textureShown && site.texture && (
-            <>
-              Terrain texture:{' '}
-              <a className="link" href={site.texture.credit.url} target="_blank" rel="noreferrer">
-                {site.texture.credit.text}
-              </a>
-              {showRover && ' · '}
-            </>
-          )}
-          {showRover && <>Rover model:{' '}
-          <a className="link" href={ROVER_CREDIT.url} target="_blank" rel="noreferrer">
-            {ROVER_CREDIT.text}
-          </a>
-          {site.rover !== 'Perseverance' && <> (Perseverance, standing in for {site.rover}: same chassis design)</>}</>}
-        </p>
-      )}
 
       {cameraView === 'side' && (
         <div className="stack-labels" aria-hidden="true">
@@ -830,6 +819,29 @@ export function MapApp({
               ))}
             </section>
           ))}
+        {/* The CC BY 4.0 models must be credited where they are shown: under the layer list, with the data sources. */}
+        {panelOpen && (showRover || textureShown) && (
+          <p className="layer-credits">
+            {textureShown && site.texture && (
+              <>
+                Terrain texture:{' '}
+                <a href={site.texture.credit.url} target="_blank" rel="noreferrer">
+                  {site.texture.credit.text} ↗
+                </a>
+              </>
+            )}
+            {textureShown && site.texture && showRover && <br />}
+            {showRover && (
+              <>
+                Rover model:{' '}
+                <a href={ROVER_CREDIT.url} target="_blank" rel="noreferrer">
+                  {ROVER_CREDIT.text} ↗
+                </a>
+                {site.rover !== 'Perseverance' && <> (standing in for {site.rover})</>}
+              </>
+            )}
+          </p>
+        )}
       </div>
       </div>
 
@@ -838,47 +850,7 @@ export function MapApp({
           <button className="close" aria-label="Close" onClick={() => setProbe(null)}>
             ×
           </button>
-          {probe.spot && (
-            <div className="probe-spot">
-              <h3>
-                <span className="swatch" style={{ background: `rgb(${SPOT_COLOR.join(',')})` }} /> {probe.spot.mineral}
-              </h3>
-              <p>{MINERAL_NOTES[probe.spot.mineral]}</p>
-              <p className="muted small">
-                Seen from orbit by CRISM: a {probe.spot.area_km2 < 0.1 ? `${Math.round(probe.spot.area_km2 * 1e6).toLocaleString()} m²` : `${probe.spot.area_km2.toFixed(2)} km²`} patch,{' '}
-                {probe.spot.route_dist_m < 50 ? 'on the rover\'s route' : `${probe.spot.route_dist_m.toLocaleString()} m from the rover's route`}. Indicative only.
-              </p>
-            </div>
-          )}
-          {probe.dtm !== null || probe.global !== null || !probe.spot ? (
           <dl>
-            {probe.sample && (
-              <>
-                <dt>Sample</dt>
-                <dd>
-                  #{probe.sample.number} {probe.sample.name} ({probe.sample.kind.toLowerCase()}, sealed sol {probe.sample.sol})
-                </dd>
-              </>
-            )}
-            {probe.depot && (
-              <>
-                <dt>Depot tube</dt>
-                <dd>
-                  {probe.depot.name} (dropped sol {probe.depot.sol})
-                </dd>
-              </>
-            )}
-            {probe.rad && (
-              <>
-                <dt>Radiation</dt>
-                <dd>
-                  {probe.rad.dose_si.toFixed(0)} µGy/day in silicon
-                  {probe.rad.dose_plastic !== null && `, ${probe.rad.dose_plastic.toFixed(0)} tissue-equivalent`}
-                  <br />
-                  sols {probe.rad.sol_start}–{probe.rad.sol_end} ({probe.rad.sols_measured} measured)
-                </dd>
-              </>
-            )}
             <dt>Position</dt>
             <dd>
               {formatLatLon(probe.lat, probe.lon, 5)}
@@ -906,7 +878,6 @@ export function MapApp({
             <dt>Elevation (MOLA, 463 m)</dt>
             <dd>{probe.global === null ? '–' : `${probe.global.toFixed(0)} m`}</dd>
           </dl>
-          ) : null}
         </div>
       )}
     </div>

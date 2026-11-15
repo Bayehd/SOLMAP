@@ -9,7 +9,7 @@
 .map-toolbar .btn { backdrop-filter: blur(6px); }
 /* Top-left buttons: separate, rounded, all the same size, in the layer list's colors (grey; Mars red when on). */
 .view-buttons { display: contents; }
-.map-app .map-views { position: absolute; left: 16px; bottom: 44px; } /* above the credit line */
+.map-app .map-views { position: absolute; left: 16px; bottom: 28px; }
 .map-toolbar .btn svg { display: block; margin: 0 auto; }
 .map-app .map-left .route-panel { width: min(360px, 100%); box-sizing: border-box; }
 .map-toolbar .btn {
@@ -19,6 +19,11 @@
 .map-toolbar .btn:hover:not(:disabled) { background: #e4e0db; border-color: transparent; }
 .map-toolbar .btn[aria-pressed="true"] { color: #fff; background: #b8432b; border-color: transparent; }
 .map-toolbar .btn[aria-pressed="true"]:hover:not(:disabled) { background: #c9503a; }
+/* The top-left buttons (▶, route) are a little see-through; solid again on hover. */
+.map-left .map-toolbar .btn { background: rgba(207, 202, 196, 0.7); }
+.map-left .map-toolbar .btn[aria-pressed="true"] { background: rgba(184, 67, 43, 0.8); }
+.map-left .map-toolbar .btn:hover:not(:disabled) { background: #e4e0db; }
+.map-left .map-toolbar .btn[aria-pressed="true"]:hover:not(:disabled) { background: #c9503a; }
 .map-toolbar .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .play-btn { min-width: 40px; text-align: center; }
 /* Rover view: the words rise out of the ground at a fixed spot (their bottom edge clips them from below), then the round button pops in. */
@@ -34,10 +39,9 @@
 .earth-rise-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @keyframes earth-rise { from { transform: translateY(120%); opacity: 0; } 60% { opacity: 1; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .earth-rise-text, .earth-rise-btn { animation: none; } }
-.drive-km { align-self: center; white-space: nowrap; padding: 4px 8px; border-radius: 8px; background: rgba(12, 12, 14, 0.75); font-size: 12px; font-variant-numeric: tabular-nums; }
+.drive-bar { align-self: center; width: 180px; height: 10px; border-radius: 5px; overflow: hidden; background: rgba(207, 202, 196, 0.75); }
+.drive-bar > span { display: block; height: 100%; background: #b8432b; border-radius: inherit; }
 .rover-front { position: absolute; height: auto; max-width: none; pointer-events: none; user-select: none; }
-.rover-credit { position: absolute; left: 16px; bottom: 22px; margin: 0; font-size: 11px; color: var(--muted); text-shadow: 0 1px 2px #000; }
-.rover-credit .link { color: var(--muted); }
 /* .map-card: the Earth page's info card (the Mars page uses the bare .map-toolbar). */
 .map-card { max-width: 100%; }
 .map-card h1 { margin: 0 0 4px; font-size: 16px; }
@@ -67,6 +71,8 @@
 .layers-icon[aria-expanded="true"] { background: #b8432b; border-color: #c9503a; }
 .layers-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .layer-panel section { margin-top: 10px; width: 100%; display: flex; flex-direction: column; gap: 0; }
+.layer-credits { margin: 10px 0 0; max-width: 280px; font-size: 11px; line-height: 1.5; text-align: right; color: #cfcac4; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
+.layer-credits a { color: inherit; }
 .layer-panel h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); text-align: right; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
 .layer-row { padding: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 /* Small round "i" right of the layer name: opens the layer's source card. Transparent, and shown only while the
@@ -116,9 +122,6 @@
 .map-app .probe { left: 50%; transform: translateX(-50%); bottom: 32px; min-width: 260px; padding-right: 32px; }
 .probe dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
 .probe dt { color: var(--muted); }
-.probe-spot { max-width: 340px; margin-bottom: 8px; }
-.probe-spot h3 { margin: 0 0 4px; font-size: 15px; }
-.probe-spot p { margin: 0 0 4px; font-size: 13px; }
 .probe dd { margin: 0; }
 .probe .close { all: unset; cursor: pointer; position: absolute; top: 4px; right: 10px; font-size: 18px; color: var(--muted); }
 @media (max-width: 640px) {
