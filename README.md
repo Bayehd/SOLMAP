@@ -52,6 +52,7 @@ npm run build
 | Gale slope hazard | Derived from that DEM (Horn method) | 20 m/px | derived |
 | Curiosity traverse and stops | NASA/JPL MSL MMGIS, to sol 5073 | per drive, 1,389 stops | data |
 | Gale radiation (route planner) | NASA PDS PPI Node, MSL RAD RDR: total dose per observation, B (silicon) and E (tissue-equivalent) detectors | 1 sol every 40, sols 41–4841 | data |
+| Curiosity radiation dose (map layer, off by default) | NASA PDS PPI Node, MSL RAD RDR, placed with the MSL MMGIS rover positions | every sol, per rover stop: 1,317 stops, sols 3–4843 | data |
 | Gale weather (route planner) | NASA PDS Atmospheres Node, MSL REMS calibrated ENV tables: air (boom 1) and ground temperature, UV, pressure | 1 sol every 40, 240 rows per sol | data |
 
 At Gale the rover is the same 3D model (Perseverance), standing in for Curiosity: Perseverance was built on
@@ -64,6 +65,12 @@ higher along a route (sky openness, elevation) is still modelled, as at Jezero. 
 not in a suit, so the walk dose is indicative. The REMS block gives typical daily lows and highs of air and
 ground temperature, midday UV and the seasonal pressure range. Jezero keeps the modelled radiation index:
 Perseverance has no RAD.
+
+**Radiation map layer (Gale):** each point is a place Curiosity stopped, colored by the mean daily
+absorbed dose in silicon (RAD's B detector) over the sols it stayed there; the click readout also gives the
+tissue-equivalent dose (E detector). The dose follows the solar cycle: about 210 µGy/day near the 2014
+solar maximum, about 285 near the 2019–2020 minimum and about 165 near the 2024 maximum. Single high
+points are solar storms: the stop at sol 4190 (20 May 2024) shows the large solar particle event of that week.
 
 **Assumption:** CTX is grayscale. To show it in Mars color, each pixel keeps the CTX brightness and is
 tinted with a butterscotch tan like Perseverance's natural-color images (`MARS_TINT`), with 30 % of the
@@ -159,6 +166,18 @@ Jezero script):
 - `msl_environment.json`: RAD and REMS on one sol every 40. RAD files are ~68 MB per sol: the script reads
   only each label (cached in `scripts/.cache/gale/`) and then the few bytes of each dose value with range
   requests. REMS tables are fixed-width, so it reads 240 evenly spaced rows per sol the same way.
+
+The radiation map layer, `msl_rad.geojson`, is built by `scripts/build_gale_rad.py` (standard library only):
+
+```sh
+python3 scripts/build_gale_rad.py
+```
+
+It reads every archived sol, not one in 40. To keep that small it fetches a few slices of each sol's label,
+spread over the day, takes the byte offsets of the dose values listed there and fetches only those bytes
+(cached per sol in `scripts/.cache/rad/`). Values that are not positive or above 1000 µGy/hour are dropped.
+A sol's dose is the median of its observations × 24, and each rover stop gets the mean of the sols until
+the next drive.
 
 ## Credits
 

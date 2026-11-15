@@ -28,6 +28,7 @@ export type Site = {
     samples?: string;
     depot?: string;
     environment?: string; // measured radiation (RAD) and weather (REMS), see scripts/build_gale_layers.py
+    radiation?: string; // measured RAD dose at each rover stop, see scripts/build_gale_rad.py
   };
   /** Elevation colors, low to high (m). */
   elevationStops: number[];
@@ -89,6 +90,7 @@ export const SITES: Record<SiteId, Site> = {
       traverse: 'data/gale/msl_traverse.geojson',
       waypoints: 'data/gale/msl_waypoints.geojson',
       environment: 'data/gale/msl_environment.json',
+      radiation: 'data/gale/msl_rad.geojson',
     },
     elevationStops: [-4625, -4300, -3900, -3000, -1500],
     dtmSource: {

@@ -23,7 +23,7 @@ type LegendItem = { color: string; label: string };
 export type LayerDef = {
   id: string;
   title: string;
-  group: string; // 'Base map', '<site> terrain (20 m)', '<site> minerals' or the rover's name
+  group: string; // 'Base map', '<site> terrain (20 m)', '<site> minerals', the rover's name or 'Radiation'
   /** Base maps are exclusive: turning one on turns the others off. */
   basemap?: boolean;
   visible: boolean;
@@ -120,6 +120,13 @@ const BASE_MAPS: LayerDef[] = [
     source: { name: 'Murray Lab, Caltech (MRO CTX) + USGS / NASA Ames (Viking MDIM 2.1), hosted by Esri', url: `${ASTRO}/CTX1/MapServer` },
     create: () => createMarsColorCtxLayer(`${ASTRO}/CTX1/MapServer`, createUpsampledTileLayer(`${ASTRO}/MDIM/MapServer`, 7)),
   },
+];
+
+/** Curiosity RAD dose rate color stops, microGray per day (absorbed dose in silicon). */
+export const RAD_STOPS = [
+  { value: 165, color: [255, 236, 160] },
+  { value: 225, color: [245, 140, 50] },
+  { value: 285, color: [190, 30, 70] },
 ];
 
 /** Every layer of a site: the base maps, then the site's terrain, minerals and rover layers (where it has data). */
@@ -312,6 +319,37 @@ export function layersFor(site: Site): LayerDef[] {
           elevationInfo: { mode: 'on-the-ground' },
           renderer: new SimpleRenderer({
             symbol: { type: 'simple-marker', style: 'diamond', size: 7, color: [255, 61, 200], outline: { color: [20, 20, 20], width: 0.75 } },
+          }),
+        }),
+    },
+    !!f.radiation && {
+      id: 'radiation',
+      title: `${rover} radiation dose (RAD)`,
+      group: 'Radiation',
+      visible: false,
+      kind: 'data',
+      resolution: '1,317 rover stops, sols 3–4843 (2012–2026)',
+      description:
+        `Radiation dose ${rover} measured at the surface at each place it stopped: the daily absorbed dose in silicon, averaged over the sols spent there. It rises and falls with the 11-year solar cycle (the Sun's activity shields Mars from galactic cosmic rays). Click a point for its values.`,
+      source: { name: 'NASA PDS PPI Node, MSL RAD RDR + MSL MMGIS rover positions', url: 'https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/' },
+      legend: RAD_STOPS.map((s) => ({ color: `rgb(${s.color.join(',')})`, label: `${s.value} µGy/day` })),
+      create: () =>
+        marsGeoJSONLayer({
+          url: publicUrl(f.radiation!),
+          geometryType: 'point',
+          fields: [
+            { name: 'sol_start', type: 'integer' },
+            { name: 'sol_end', type: 'integer' },
+            { name: 'sols_measured', type: 'integer' },
+            { name: 'dose_si', type: 'double' },
+            { name: 'dose_plastic', type: 'double' },
+            { name: 'elevation_m', type: 'double' },
+          ],
+          outFields: ['*'],
+          elevationInfo: { mode: 'on-the-ground' },
+          renderer: new SimpleRenderer({
+            symbol: { type: 'simple-marker', size: 7, color: [255, 255, 255], outline: { color: [20, 20, 20], width: 0.5 } },
+            visualVariables: [{ type: 'color', field: 'dose_si', stops: RAD_STOPS.map((s) => ({ value: s.value, color: [...s.color] })) }],
           }),
         }),
     },

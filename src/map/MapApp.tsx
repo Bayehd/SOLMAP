@@ -30,6 +30,7 @@ type Probe = {
   mineral: number | null; // MINERAL_CLASSES index + 1, 0 = none
   sample: { number: number; name: string; kind: string; sol: number } | null; // clicked sample point
   depot: { name: string; sol: number } | null; // clicked depot tube
+  rad: { sol_start: number; sol_end: number; sols_measured: number; dose_si: number; dose_plastic: number | null } | null; // clicked RAD stop
 };
 
 const initialVisibility = (defs: LayerDef[]) => Object.fromEntries(defs.map((l) => [l.id, l.visible]));
@@ -178,15 +179,19 @@ export function MapApp({
         return v === undefined || v === null || v <= -32767 ? null : v;
       };
       const pointHits = view
-        .hitTest(event, { include: [layers['samples'], layers['depot']].filter(Boolean) })
+        .hitTest(event, { include: [layers['samples'], layers['depot'], layers['radiation']].filter(Boolean) })
         .then((h) => {
           const attrs = (id: string) => {
             for (const r of h.results) if (r.type === 'graphic' && r.layer === layers[id]) return r.graphic.attributes;
             return null;
           };
-          return { sample: attrs('samples') as Probe['sample'], depot: attrs('depot') as Probe['depot'] };
+          return {
+            sample: attrs('samples') as Probe['sample'],
+            depot: attrs('depot') as Probe['depot'],
+            rad: attrs('radiation') as Probe['rad'],
+          };
         })
-        .catch(() => ({ sample: null, depot: null }));
+        .catch(() => ({ sample: null, depot: null, rad: null }));
       const [dtm, slope, mineral, global, hits] = await Promise.all([
         pixel('elevation'),
         pixel('slope'),
@@ -452,6 +457,17 @@ export function MapApp({
                 <dt>Depot tube</dt>
                 <dd>
                   {probe.depot.name} (dropped sol {probe.depot.sol})
+                </dd>
+              </>
+            )}
+            {probe.rad && (
+              <>
+                <dt>Radiation</dt>
+                <dd>
+                  {probe.rad.dose_si.toFixed(0)} µGy/day in silicon
+                  {probe.rad.dose_plastic !== null && `, ${probe.rad.dose_plastic.toFixed(0)} tissue-equivalent`}
+                  <br />
+                  sols {probe.rad.sol_start}–{probe.rad.sol_end} ({probe.rad.sols_measured} measured)
                 </dd>
               </>
             )}
