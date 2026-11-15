@@ -15,7 +15,6 @@ import { marsGeoJSONLayer } from './geojson';
 import { METERS_PER_DEGREE, publicUrl } from './mars';
 import { ELEVATION_COLORS, type Site } from './sites';
 import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
-import { createModelTextureLayer } from './ModelTextureLayer';
 import { createRegionTextureLayer } from './RegionTextureLayer';
 import { createTrekTileLayer } from './TrekTileLayer';
 import { SPOT_COLOR } from './mineralSpots';
@@ -26,8 +25,6 @@ export type LayerDef = {
   id: string;
   title: string;
   group: string; // 'Base map', '<site> terrain (20 m)', '<site> minerals', the rover's name or 'Radiation'
-  /** Base maps are exclusive: turning one on turns the others off. */
-  basemap?: boolean;
   /** false: drawn by the app but not offered in the layer list. */
   listed?: boolean;
   visible: boolean;
@@ -80,27 +77,13 @@ export const SAMPLE_KINDS = [
   { label: 'Atmospheric', color: [235, 235, 235] },
 ] as const;
 
-/** Base maps: global, the same at every site. */
+/** Base map: global, the same at every site. */
 const BASE_MAPS: LayerDef[] = [
-  {
-    id: 'model-texture',
-    title: 'Painted Mars',
-    group: 'Base map',
-    basemap: true,
-    visible: false,
-    kind: 'artistic',
-    resolution: '~2.6 km/px (8192 × 4096)',
-    description: 'An artist\'s color texture of Mars (public/models/mars-8k.jpg). Not NASA data: for looks, not for analysis.',
-    source: {
-      name: '"Mars the Red Planet" by DURVESH123, CC BY',
-      url: 'https://sketchfab.com/3d-models/mars-the-red-planet-free-7cf3b31ca60f45cc8e52f7fa863ad09a',
-    },
-    create: () => createModelTextureLayer(publicUrl('models/mars-8k.jpg')),
-  },
   {
     id: 'ctx-mosaic',
     title: 'Satellite photos',
     group: 'Base map',
+    listed: false, // always shown under the data layers, not a choice in the list
     visible: true,
     kind: 'data',
     resolution: '~5 m/px',
@@ -217,7 +200,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     {
       id: 'slope',
-      title: 'Steep slopes',
+      title: 'Hazards',
       group: terrain,
       visible: false,
       opacity: 0.65,

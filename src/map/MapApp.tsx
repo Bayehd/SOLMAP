@@ -538,11 +538,7 @@ export function MapApp({
   const textureShown = !!layers['crater-texture'] && (cameraView === 'rover' ? site.immersiveLayers.includes('crater-texture') : visibility['crater-texture']);
 
   const toggle = (def: LayerDef) =>
-    setVisibility((v) => {
-      const next = { ...v, [def.id]: !v[def.id] };
-      if (def.basemap && next[def.id]) for (const o of defs) if (o.basemap && o.id !== def.id) next[o.id] = false;
-      return next;
-    });
+    setVisibility((v) => ({ ...v, [def.id]: !v[def.id] }));
 
   const showView = (v: CameraView) => {
     const view = viewRef.current;
@@ -786,13 +782,7 @@ export function MapApp({
               {defs.filter((l) => l.group === group && l.listed !== false).map((def) => (
                 <div key={def.id} className="layer-row">
                   <label data-on={visibility[def.id]}>
-                    <input
-                      type={def.basemap ? 'radio' : 'checkbox'}
-                      name={def.basemap ? 'basemap' : undefined}
-                      checked={visibility[def.id]}
-                      onChange={() => toggle(def)}
-                      onClick={() => def.basemap && visibility[def.id] && toggle(def)}
-                    />
+                    <input type="checkbox" checked={visibility[def.id]} onChange={() => toggle(def)} />
                     <span>{def.title}</span>
                   </label>
                   <button
