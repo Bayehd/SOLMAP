@@ -1,5 +1,5 @@
 // Home page: pick a landing area (Jezero Crater or Gale Crater) -> launch -> fly there -> the rover lands at
-// the start of its traverse. From the map, "Go to Earth" sends the rocket to the Earth page; "Back to Mars"
+// the start of its traverse. At the end of the route, "Return to Earth" sends the rocket to the Earth page; "Back to Mars"
 // flies home again and the sky crane lowers the rover back at the same site.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { MapApp } from './map/MapApp';

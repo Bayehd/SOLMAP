@@ -115,7 +115,7 @@ export function MapApp({
   showRover?: boolean;
   /** Filled while the 3D view is up, for the landing animation. */
   roverControl?: RefObject<RoverControl | null>;
-  /** "Go to Earth" was clicked. pad = screen position of the rover, or null if it is off screen. */
+  /** "Return to Earth" was clicked (shown at the end of the route). pad = screen position of the rover, or null if it is off screen. */
   onTravel?: (pad: { x: number; y: number } | null) => void;
   canTravel?: boolean;
 }) {
@@ -548,6 +548,9 @@ export function MapApp({
   };
 
 
+  // "Return to Earth" appears once the rover has driven to the end of its route.
+  const atRouteEnd = drive.ready && drive.totalKm > 0 && drive.km >= drive.totalKm - 0.001;
+
   // The rocket takes off from wherever the rover is (the landing site until it has driven).
   const goEarth = async () => {
     const view = viewRef.current;
@@ -568,16 +571,6 @@ export function MapApp({
 
       <div className="map-left">
       <div className="map-toolbar">
-        {cameraView !== 'rover' && (
-          <button className="btn" onClick={goEarth} disabled={!canTravel} aria-label="Go to Earth" title="Go to Earth">
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              {/* a globe: outline, meridian and parallels */}
-              <circle cx="12" cy="12" r="9" />
-              <ellipse cx="12" cy="12" rx="4" ry="9" />
-              <path d="M3 12h18M4.5 7.5h15M4.5 16.5h15" />
-            </svg>
-          </button>
-        )}
         {showRover && (
           <button
             className="btn play-btn"
@@ -612,6 +605,15 @@ export function MapApp({
             {drive.km.toFixed(2)} / {drive.totalKm.toFixed(1)} km
           </span>
         )}
+        {atRouteEnd && cameraView !== 'rover' && (
+          <button className="btn earth-btn" onClick={goEarth} disabled={!canTravel} title="Take off for Earth">
+            <span>Return to Earth</span>
+            {/* a plane taking off over a runway */}
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+              <path d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10l-6.9-6.43-1.93.51 4.14 7.17-4.97 1.33-1.97-1.54-1.45.39 2.59 4.49L21 11.49c.81-.23 1.28-1.05 1.07-1.85z" />
+            </svg>
+          </button>
+        )}
       </div>
       {cameraView !== 'rover' && <RoutePanel planner={planner} site={site} open={routeOpen} />}
       </div>
@@ -631,6 +633,18 @@ export function MapApp({
             };
           })()}
         />
+      )}
+
+      {/* Rover view, end of the route: "Return to Earth" rises out of the ground ahead, with a round take-off button. */}
+      {atRouteEnd && cameraView === 'rover' && !boardUp && (
+        <div className="earth-rise">
+          <span className="earth-rise-text" aria-hidden="true">Return to Earth</span>
+          <button className="earth-rise-btn" onClick={goEarth} disabled={!canTravel} aria-label="Return to Earth" title="Take off for Earth">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="currentColor">
+              <path d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10l-6.9-6.43-1.93.51 4.14 7.17-4.97 1.33-1.97-1.54-1.45.39 2.59 4.49L21 11.49c.81-.23 1.28-1.05 1.07-1.85z" />
+            </svg>
+          </button>
+        </div>
       )}
 
       {/* Camera views, bottom left (▶ and the route stay at the top left). */}

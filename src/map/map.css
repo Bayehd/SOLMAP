@@ -21,6 +21,22 @@
 .map-toolbar .btn[aria-pressed="true"]:hover:not(:disabled) { background: #c9503a; }
 .map-toolbar .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .play-btn { min-width: 40px; text-align: center; }
+.map-toolbar .earth-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; min-width: 0; padding: 0 10px; font-size: 12px; color: #fff; background: #b8432b; }
+.map-toolbar .earth-btn:hover:not(:disabled) { background: #c9503a; }
+.map-toolbar .earth-btn svg { margin: 0; }
+/* Rover view: the words rise out of the ground (a horizon line clips them from below), then the round button pops in. */
+.earth-rise { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 14px;
+  overflow: hidden; padding: 6px 8px 2px; pointer-events: none; }
+.earth-rise-text { display: block; font-size: clamp(22px, 3.2vw, 36px); font-weight: 700; letter-spacing: 0.04em; color: #fff; white-space: nowrap;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.7), 0 0 18px rgba(0,0,0,0.45); animation: earth-rise 1.4s cubic-bezier(.2,.7,.2,1) both; }
+.earth-rise-btn { all: unset; box-sizing: border-box; pointer-events: auto; cursor: pointer; display: grid; place-items: center; width: 46px; height: 46px;
+  border-radius: 50%; color: #fff; background: #b8432b; box-shadow: 0 2px 10px rgba(0,0,0,0.5); transition: background 0.15s;
+  animation: earth-rise 1.4s cubic-bezier(.2,.7,.2,1) 0.5s both; }
+.earth-rise-btn:hover:not(:disabled) { background: #c9503a; }
+.earth-rise-btn:disabled { opacity: 0.6; cursor: default; }
+.earth-rise-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@keyframes earth-rise { from { transform: translateY(120%); opacity: 0; } 60% { opacity: 1; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .earth-rise-text, .earth-rise-btn { animation: none; } }
 .drive-km { align-self: center; white-space: nowrap; padding: 4px 8px; border-radius: 8px; background: rgba(12, 12, 14, 0.75); font-size: 12px; font-variant-numeric: tabular-nums; }
 .rover-front { position: absolute; height: auto; max-width: none; pointer-events: none; user-select: none; }
 .rover-credit { position: absolute; left: 16px; bottom: 22px; margin: 0; font-size: 11px; color: var(--muted); text-shadow: 0 1px 2px #000; }
