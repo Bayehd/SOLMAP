@@ -4,6 +4,7 @@
 // attachRover() returns a RoverControl: the landing animation uses it to fly the model down onto the route's
 // origin, and the map uses it to drive the rover along the site's whole traverse (site.files.traverse).
 import Graphic from '@arcgis/core/Graphic';
+import Multipoint from '@arcgis/core/geometry/Multipoint';
 import Point from '@arcgis/core/geometry/Point';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import PointSymbol3D from '@arcgis/core/symbols/PointSymbol3D';
@@ -25,6 +26,9 @@ const PARKED_HEADING = 120; // degrees, so the parked model is seen from its sid
 const MODEL_HEADING_OFFSET = 180; // added to the direction of travel so the model drives arm (front) first
 const DRIVE_SECONDS = 90; // time to drive the whole route
 const HEADING_WINDOW_M = 40; // direction of travel is measured over ±this, so small wiggles don't jitter
+const PROFILE_STEP_M = 10; // ground heights along the route, for the Rover camera view, every this many meters
+const TURN_STEP = 3; // degrees: the model is turned when the direction of travel has changed by more than this
+const TURN_STEP_CLOSE = 0.5; // the same in the Rover view, where the model is right in front of the camera
 
 /** What the landing animation needs from the 3D view. Altitudes are meters above the ground at the site. */
 export type RoverControl = {
@@ -37,12 +41,29 @@ export type RoverControl = {
 
 export type DriveState = { ready: boolean; playing: boolean; km: number; totalKm: number };
 
+/** Where the rover is and which way it is driving (degrees clockwise from north), for the Rover camera view. */
+export type RoverPose = { lon: number; lat: number; travelHeading: number; groundZ: number | null; distM: number };
+
 const roverSymbol = (height: number, heading: number) =>
   new PointSymbol3D({
     symbolLayers: [
       new ObjectSymbol3DLayer({
         resource: { href: publicUrl('models/perseverance.glb') },
         height,
+        heading,
+        anchor: 'bottom',
+      }),
+    ],
+  });
+
+// Riding on the rover (the Rover view) you see its wheels, not the rest: a copy of the model with only the wheels
+// (scripts/make_wheels_model.py). They span the rover's full width, so sizing by width keeps the real scale.
+const wheelsSymbol = (heading: number) =>
+  new PointSymbol3D({
+    symbolLayers: [
+      new ObjectSymbol3DLayer({
+        resource: { href: publicUrl('models/perseverance-wheels.glb') },
+        width: REAL_HEIGHT_M * ROVER_WIDTH_PER_HEIGHT,
         heading,
         anchor: 'bottom',
       }),
@@ -139,6 +160,15 @@ export function attachRover(
   onDrive?: (s: DriveState) => void,
 ): RoverControl & {
   toggleDrive(): void;
+  pose(): RoverPose;
+  /** Called on every move while driving (null: stop). */
+  onMove(listener: ((p: RoverPose) => void) | null): void;
+  /** Driving speed in m/s; null = the whole route in DRIVE_SECONDS. */
+  setSpeed(mps: number | null): void;
+  /** Show only the wheels, at real size, for the Rover view (the camera rides on the rover). */
+  setRiding(on: boolean): void;
+  /** Points along the route from fromM to toM (meters driven), every stepM. */
+  routeBetween(fromM: number, toM: number, stepM: number): { lon: number; lat: number }[];
   remove(): void;
 } {
   const graphic = layer.graphics.getItemAt(0)!;
@@ -150,9 +180,10 @@ export function attachRover(
   let height = REAL_HEIGHT_M;
   let heading = PARKED_HEADING;
   let removed = false;
+  let riding = false;
 
   const place = () => (graphic.geometry = point(lon, lat, altitude));
-  const resymbol = () => (graphic.symbol = roverSymbol(height, heading));
+  const resymbol = () => (graphic.symbol = riding ? wheelsSymbol(heading) : roverSymbol(height, heading));
 
   view.map?.ground
     .queryElevation(point(siteLon, siteLat, 0))
@@ -178,6 +209,43 @@ export function attachRover(
   let playing = false;
   let raf = 0;
   let lastReport = 0;
+  let speed: number | null = null;
+  let moveListener: ((p: RoverPose) => void) | null = null;
+  // Ground height along the route from the full-resolution terrain (the site DTM), read once when the Rover
+  // view first needs it: the view's own quick height lookup is coarser than the drawn ground near the camera.
+  let profile: Float64Array | null = null;
+  let profileLoading = false;
+  const loadProfile = () => {
+    const ground = view.map?.ground;
+    if (!route || profile || profileLoading || !ground) return;
+    profileLoading = true;
+    const r = route;
+    const points: number[][] = [];
+    for (let d = 0; d <= r.total; d += PROFILE_STEP_M) {
+      const p = sample(r, d);
+      points.push([p.lon, p.lat]);
+    }
+    ground
+      .queryElevation(new Multipoint({ points, spatialReference: marsSR() }))
+      .then((res) => {
+        if (!removed) profile = Float64Array.from((res.geometry as Multipoint).points, (p) => p[2]);
+      })
+      .catch(() => (profileLoading = false));
+  };
+  const groundAt = (dist: number) => {
+    if (!profile) return null;
+    const f = Math.min(Math.max(dist / PROFILE_STEP_M, 0), profile.length - 1);
+    const i = Math.floor(f);
+    const j = Math.min(i + 1, profile.length - 1);
+    return profile[i] + (profile[j] - profile[i]) * (f - i);
+  };
+  const pose = (): RoverPose => ({
+    lon,
+    lat,
+    travelHeading: route ? headingAt(route, s) : (PARKED_HEADING - MODEL_HEADING_OFFSET + 360) % 360,
+    groundZ: groundAt(s),
+    distM: s,
+  });
   const report = (force = false) => {
     const now = performance.now();
     if (!force && now - lastReport < 100) return; // ~10 updates a second is plenty for the UI
@@ -198,10 +266,11 @@ export function attachRover(
     ({ lon, lat } = sample(route, s));
     place();
     const h = (headingAt(route, s) + MODEL_HEADING_OFFSET) % 360;
-    if (angleDiff(h, heading) > 3) {
+    if (angleDiff(h, heading) > (riding ? TURN_STEP_CLOSE : TURN_STEP)) {
       heading = h;
       resymbol();
     }
+    moveListener?.(pose());
   };
 
   let last = 0;
@@ -209,7 +278,7 @@ export function attachRover(
     if (!route || !playing) return;
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
-    moveTo(s + (route.total / DRIVE_SECONDS) * dt);
+    moveTo(s + (speed ?? route.total / DRIVE_SECONDS) * dt);
     if (s >= route.total) playing = false;
     report(!playing);
     if (playing) raf = requestAnimationFrame(frame);
@@ -227,6 +296,28 @@ export function attachRover(
     },
     metersPerPx: () => measureMetersPerPx(view, siteLon, siteLat, groundZ),
     position: () => ({ lon, lat }),
+    pose,
+    onMove(listener) {
+      moveListener = listener;
+      if (listener) loadProfile();
+    },
+    setSpeed(mps) {
+      speed = mps;
+    },
+    setRiding(on) {
+      riding = on; // the wheels have their own, real size; the full rover keeps its enlarged one
+      resymbol();
+      if (on) moveTo(s); // turn a parked rover to face the route
+    },
+    routeBetween(fromM, toM, stepM) {
+      if (!route) return [];
+      const a = Math.max(0, fromM);
+      const b = Math.min(route.total, toM);
+      const pts: { lon: number; lat: number }[] = [];
+      for (let d = a; d < b; d += stepM) pts.push(sample(route, d));
+      if (b > a) pts.push(sample(route, b));
+      return pts;
+    },
     toggleDrive() {
       if (!route) return;
       if (playing) {
@@ -243,6 +334,7 @@ export function attachRover(
     remove() {
       removed = true;
       playing = false;
+      moveListener = null;
       cancelAnimationFrame(raf);
     },
   };

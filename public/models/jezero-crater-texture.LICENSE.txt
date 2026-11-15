@@ -1,0 +1,18 @@
+jezero-crater-texture.jpg is the base color texture of the 3D model "Jezero Crater (Mars)",
+flipped north-up and re-encoded as JPEG. Only the texture is used; the app's terrain is the
+USGS CTX DTM.
+
+Model Information:
+* title:	Jezero Crater (Mars)
+* source:	https://sketchfab.com/3d-models/jezero-crater-mars-f8501fbe652241b585f7734bee259ad3
+* author:	Gaia (https://sketchfab.com/gaiastucky)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+This work is based on "Jezero Crater (Mars)" (https://sketchfab.com/3d-models/jezero-crater-mars-f8501fbe652241b585f7734bee259ad3)
+by Gaia (https://sketchfab.com/gaiastucky) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+
+Georeferencing (fitted by matching the model's heights to the USGS CTX DTM, RMS 17 m):
+the texture covers lon 77.0095..78.5345 E, lat 17.5661..19.3019 N (GCS Mars 2000), north up.

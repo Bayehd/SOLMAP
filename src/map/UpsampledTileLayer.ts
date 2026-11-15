@@ -6,6 +6,9 @@ import BaseTileLayer, { type BaseTileLayerProperties } from '@arcgis/core/layers
 import esriRequest from '@arcgis/core/request';
 import { marsSR, marsTileInfo } from './mars';
 
+/** The deepest level of the CTX mosaic service (OnMars/CTX1): ~5 m/px, CTX's own resolution. */
+export const CTX_MAX_LEVEL = 12;
+
 export function createUpsampledTileLayer(serviceUrl: string, maxLevel: number, props: BaseTileLayerProperties = {}): BaseTileLayer {
   const Layer = BaseTileLayer.createSubclass({
     async fetchTile(level: number, row: number, col: number, options?: { signal?: AbortSignal }) {

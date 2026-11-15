@@ -24,16 +24,19 @@ export type Site = {
     slope: string;
     minerals?: string;
     traverse: string;
-    waypoints: string;
     samples?: string;
     depot?: string;
     environment?: string; // measured radiation (RAD) and weather (REMS), see scripts/build_gale_layers.py
     radiation?: string; // measured RAD dose at each rover stop, see scripts/build_gale_rad.py
   };
+  /** An artist's color texture of the area, placed on the 3D ground (not NASA data). */
+  texture?: { file: string; box: Box; title: string; credit: { text: string; url: string } };
+  /** Layer ids shown in the Rover view: just the ground, for an immersive ride. */
+  immersiveLayers: string[];
   /** Elevation colors, low to high (m). */
   elevationStops: number[];
   dtmSource: { name: string; url: string };
-  roverSource: { traverse: string; waypoints: string; until: string; stops: string };
+  roverSource: { traverse: string; until: string };
 };
 
 /** Same colors for every site, spread over each site's own elevation range. */
@@ -61,17 +64,26 @@ export const SITES: Record<SiteId, Site> = {
       slope: 'data/jezero/ctx_slope_20m.tif',
       minerals: 'data/jezero/crism_minerals_20m.tif',
       traverse: 'data/jezero/m20_traverse.geojson',
-      waypoints: 'data/jezero/m20_waypoints.geojson',
       samples: 'data/jezero/m20_samples.geojson',
       depot: 'data/jezero/m20_depot.geojson',
     },
+    // "Jezero Crater (Mars)" by Gaia, CC BY 4.0: its texture, georeferenced by matching the model's heights to the
+    // USGS CTX DTM (RMS 17 m). See public/models/jezero-crater-texture.LICENSE.txt.
+    texture: {
+      file: 'models/jezero-crater-texture.jpg',
+      box: { xmin: 77.0095, ymin: 17.56576, xmax: 78.5345, ymax: 19.30224 },
+      title: 'Crater model texture',
+      credit: {
+        text: '“Jezero Crater (Mars)” by Gaia, CC BY 4.0',
+        url: 'https://sketchfab.com/3d-models/jezero-crater-mars-f8501fbe652241b585f7734bee259ad3',
+      },
+    },
+    immersiveLayers: ['mdim', 'ctx-mosaic', 'crater-texture'],
     elevationStops: [-2711, -2400, -2100, -1800, -1516],
     dtmSource: { name: 'USGS Astrogeology, Mars 2020 TRN CTX DTM (Fergason et al. 2020)', url: 'https://planetarymaps.usgs.gov/mosaic/mars2020_trn/CTX/' },
     roverSource: {
       traverse: 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_traverse.json',
-      waypoints: 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_waypoints.json',
       until: 'drive by drive, to sol 2022',
-      stops: '708 end-of-drive positions',
     },
   },
   gale: {
@@ -88,10 +100,10 @@ export const SITES: Record<SiteId, Site> = {
       dtm: 'data/gale/gale_dem_20m.tif',
       slope: 'data/gale/gale_slope_20m.tif',
       traverse: 'data/gale/msl_traverse.geojson',
-      waypoints: 'data/gale/msl_waypoints.geojson',
       environment: 'data/gale/msl_environment.json',
       radiation: 'data/gale/msl_rad.geojson',
     },
+    immersiveLayers: ['mdim', 'ctx-mosaic'],
     elevationStops: [-4625, -4300, -3900, -3000, -1500],
     dtmSource: {
       name: 'USGS Astrogeology, MSL Gale merged DEM (HiRISE + CTX), averaged to 20 m',
@@ -99,9 +111,7 @@ export const SITES: Record<SiteId, Site> = {
     },
     roverSource: {
       traverse: 'https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_traverse.json',
-      waypoints: 'https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_waypoints.json',
       until: 'drive by drive, to sol 5073',
-      stops: '1,389 end-of-drive positions',
     },
   },
 };

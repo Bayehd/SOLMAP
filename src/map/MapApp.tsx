@@ -13,11 +13,12 @@ import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import { RoutePanel } from '../route/RoutePanel';
 import { useRoutePlanner } from '../route/useRoutePlanner';
 import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
+import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
 import { createSiteElevationLayer } from './SiteElevationLayer';
 import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
-import { marsSR } from './mars';
+import { METERS_PER_DEGREE, marsSR } from './mars';
 import { formatLatLon, insideSite, landingExtent, siteExtent, type Site } from './sites';
-import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl } from './rover';
+import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl, type RoverPose } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './map.css';
 
@@ -50,11 +51,12 @@ const globeCamera = (site: Site) =>
   new Camera({ position: new Point({ x: site.landing.lon, y: site.landing.lat, z: 12_000_000, spatialReference: marsSR() }), tilt: 0, heading: 0 });
 
 // Camera views of the site's area.
-type CameraView = '3d' | 'side' | 'top';
+type CameraView = '3d' | 'side' | 'top' | 'rover';
 const CAMERA_VIEWS: { id: CameraView; label: string }[] = [
   { id: '3d', label: '3D' },
   { id: 'side', label: 'Side' },
   { id: 'top', label: 'Top' },
+  { id: 'rover', label: 'Rover' },
 ];
 // Side view: the layer stack, seen corner-on from the southwest.
 const SIDE_TILT = 68;
@@ -62,10 +64,26 @@ const SIDE_HEADING = 35;
 const SIDE_ZOOM = 0.85; // after framing the whole stack, move in this much closer (smaller = closer)
 const LABEL_GAP_PX = 24; // between the stack and its labels
 const TOP_ZOOM = 0.65; // top view frames this fraction of the site's area (smaller = closer)
+// Rover view: riding on the rover at the height of its mast cameras, looking where it drives. Only its wheels are drawn
+// (rover.ts), at the bottom of the screen, with the route line ahead (routeGuide.ts).
+const ROVER_CAM_BACK_M = 3; // camera behind the middle of the wheels, so the front and middle wheels are in view
+const ROVER_CAM_UP_M = 2.2; // camera height above the ground: the top of the mast
+const ROVER_TILT = 70; // degrees from straight down: the front wheels at the bottom of the screen, the horizon at the top
+const ROVER_FOV = 85; // degrees, a wide lens so the wheels on both sides fit
+const DEFAULT_FOV = 55; // ArcGIS's, for the other views
+const ROVER_VIEW_SPEED = 30; // m/s while in this view (the whole route takes ~25 min instead of 90 s)
+const ROVER_CLIP_NEAR_M = 0.5; // draw the ground from this close to the camera
+const ROVER_CLIP_FAR_M = 400_000; // to the horizon and the crater rims
 
 
-/** Camera for the 3D and Top views; the Side view frames the stack once it is built. */
-function cameraFor(site: Site, v: Exclude<CameraView, 'side'>) {
+const normalLens = (camera: Camera) => {
+  const c = camera.clone();
+  c.fov = DEFAULT_FOV;
+  return c;
+};
+
+/** Camera for the 3D and Top views; the Side view frames the stack once it is built, the Rover view follows the rover. */
+function cameraFor(site: Site, v: Exclude<CameraView, 'side' | 'rover'>) {
   if (v === '3d') return { target: siteExtent(site), tilt: 55, heading: 0 };
   return { target: siteExtent(site).expand(TOP_ZOOM), tilt: 0, heading: 0 };
 }
@@ -108,7 +126,7 @@ export function MapApp({
   const roverRef = useRef<ReturnType<typeof attachRover> | null>(null);
 
   // One Map and one set of layers for both views, so a toggle applies to both.
-  const { map, layers, globalElevation, roverLayer, routeLayer, stack } = useMemo(() => {
+  const { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, stack } = useMemo(() => {
     const layers: Record<string, Layer> = {};
     for (const def of defs) {
       const layer = def.create();
@@ -121,12 +139,13 @@ export function MapApp({
     const globalElevation = globalElevationLayer();
     const roverLayer = createRoverLayer(site);
     const routeLayer = new GraphicsLayer({ id: 'route', title: 'Safest route', elevationInfo: { mode: 'on-the-ground' } });
+    const guideLayer = createRouteGuideLayer(); // the route line of the Rover view
     const stack = createLayerStack(site, defs);
     const map = new ArcGISMap({
-      layers: [...defs.map((d) => layers[d.id]), routeLayer, roverLayer, ...stack.layers],
+      layers: [...defs.map((d) => layers[d.id]), routeLayer, guideLayer, roverLayer, ...stack.layers],
       ground: { layers: [createSiteElevationLayer(site, globalElevation)] },
     });
-    return { map, layers, globalElevation, roverLayer, routeLayer, stack };
+    return { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, stack };
   }, [site, defs]);
 
   const planner = useRoutePlanner(routeLayer, layers, site);
@@ -135,11 +154,18 @@ export function MapApp({
 
   // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
+    // Rover view: only the ground (site.immersiveLayers), whatever is checked; the checks come back on leaving it.
+    if (cameraView === 'rover') {
+      for (const def of defs) layers[def.id].visible = site.immersiveLayers.includes(def.id);
+      routeLayer.visible = false;
+      return;
+    }
+    routeLayer.visible = true;
     // The bottom layer of the stack stays on the ground.
     const ground = groundLayerOf(defs.filter((l) => visibility[l.id]).map((l) => l.id));
     for (const def of defs)
       layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id) && def.id !== ground);
-  }, [visibility, layers, cameraView, defs]);
+  }, [visibility, layers, cameraView, defs, site, routeLayer]);
 
   useEffect(() => {
     const view = new SceneView({
@@ -219,7 +245,58 @@ export function MapApp({
 
   useEffect(() => {
     roverLayer.visible = showRover && cameraView !== 'side'; // hidden under the stack
-  }, [showRover, roverLayer, cameraView]);
+    guideLayer.visible = cameraView === 'rover';
+  }, [showRover, roverLayer, guideLayer, cameraView]);
+
+  // Rover view: the camera rides behind the rover and looks along the route; it moves with every step of the drive.
+  useEffect(() => {
+    const view = viewRef.current;
+    const rover = roverRef.current;
+    if (cameraView !== 'rover' || !view || !rover) return;
+    let lastZ: number | null = null;
+    const cameraAt = (p: RoverPose) => {
+      // Ground height: the route's profile from the full-resolution terrain once it has loaded, and the terrain
+      // already loaded in the view (synchronous, but coarser), whichever is higher, so the camera never dips under the ground.
+      // The camera is behind the rover, so the ground under it is checked too (it may be higher on a slope).
+      const h = (p.travelHeading * Math.PI) / 180;
+      const lon = p.lon - (ROVER_CAM_BACK_M * Math.sin(h)) / (METERS_PER_DEGREE * Math.cos((p.lat * Math.PI) / 180));
+      const lat = p.lat - (ROVER_CAM_BACK_M * Math.cos(h)) / METERS_PER_DEGREE;
+      const quick = (x: number, y: number) =>
+        (view.groundView?.elevationSampler?.queryElevation(new Point({ x, y, spatialReference: marsSR() })) as Point | null | undefined)?.z;
+      const zs = [p.groundZ, quick(p.lon, p.lat), quick(lon, lat)].filter((z): z is number => typeof z === 'number' && Number.isFinite(z));
+      if (zs.length) lastZ = Math.max(...zs);
+      const position = new Point({ x: lon, y: lat, z: (lastZ ?? site.landingElevationM) + ROVER_CAM_UP_M, spatialReference: marsSR() });
+      return new Camera({ position, heading: p.travelHeading, tilt: ROVER_TILT, fov: ROVER_FOV });
+    };
+    let entering = true; // flying down into the rover; drive steps take over when it ends
+    view
+      .goTo(cameraAt(rover.pose()), { duration: 2500, easing: 'cubic-in-out' })
+      .catch(() => {})
+      .then(() => (entering = false));
+    rover.setSpeed(ROVER_VIEW_SPEED);
+    rover.setRiding(true);
+    const guide = routeGuideUpdater(guideLayer, rover.routeBetween);
+    guide(rover.pose().distM, true);
+    rover.onMove((p) => {
+      guide(p.distM);
+      if (!entering) view.camera = cameraAt(p);
+    });
+    // ArcGIS sets the near clipping plane from the camera's height (~8 m here), which would cut away the ground
+    // just ahead of the rover: set it by hand while riding.
+    const clip = view.constraints.clipDistance;
+    clip.mode = 'manual';
+    clip.near = ROVER_CLIP_NEAR_M;
+    clip.far = ROVER_CLIP_FAR_M;
+    return () => {
+      rover.onMove(null);
+      rover.setSpeed(null);
+      rover.setRiding(false);
+      guideLayer.removeAll();
+      // Normally showView has already put the lens back before flying out; setting the camera here would stop that flight.
+      if (view.camera.fov !== DEFAULT_FOV && !view.animation) view.camera = normalLens(view.camera);
+      clip.mode = 'auto';
+    };
+  }, [cameraView, site, guideLayer]);
 
   // Side view: one slab per checked data layer, elevation on top (see layerStack.ts). Framed once on entry.
   const stackIds = defs.filter((l) => STACKABLE.has(l.id) && visibility[l.id]).map((l) => l.id).join(',');
@@ -321,6 +398,8 @@ export function MapApp({
     };
   }, [fly, site]);
 
+  const textureShown = !!layers['crater-texture'] && (cameraView === 'rover' ? site.immersiveLayers.includes('crater-texture') : visibility['crater-texture']);
+
   const toggle = (def: LayerDef) =>
     setVisibility((v) => {
       const next = { ...v, [def.id]: !v[def.id] };
@@ -329,8 +408,11 @@ export function MapApp({
     });
 
   const showView = (v: CameraView) => {
+    const view = viewRef.current;
+    if (cameraView === 'rover' && view) view.camera = normalLens(view.camera); // before any flight starts
     setCameraView(v);
-    if (v !== 'side') viewRef.current?.goTo(cameraFor(site, v), { duration: 1500 }).catch(() => {}); // side: framed by the stack effect
+    // side: framed by the stack effect; rover: placed by the rover-view effect
+    if (v !== 'side' && v !== 'rover') viewRef.current?.goTo(cameraFor(site, v), { duration: 1500 }).catch(() => {});
   };
 
 
@@ -356,7 +438,14 @@ export function MapApp({
       <div className="map-toolbar">
         <div className="segmented" role="group" aria-label="Camera view">
           {CAMERA_VIEWS.map(({ id, label }) => (
-            <button key={id} className="btn" aria-pressed={cameraView === id} onClick={() => showView(id)}>
+            <button
+              key={id}
+              className="btn"
+              aria-pressed={cameraView === id}
+              onClick={() => showView(id)}
+              disabled={id === 'rover' && !(showRover && canTravel && drive.ready)}
+              title={id === 'rover' ? 'Ride on the rover along its route' : undefined}
+            >
               {label}
             </button>
           ))}
@@ -372,17 +461,31 @@ export function MapApp({
             {drive.playing ? '❚❚' : '▶'}
           </button>
         )}
+        {cameraView === 'rover' && (
+          <span className="drive-km" aria-live="off">
+            {drive.km.toFixed(2)} / {drive.totalKm.toFixed(1)} km
+          </span>
+        )}
       </div>
-      <RoutePanel planner={planner} site={site} />
+      {cameraView !== 'rover' && <RoutePanel planner={planner} site={site} />}
       </div>
 
-      {showRover && (
+      {(showRover || textureShown) && (
         <p className="rover-credit">
-          Rover model:{' '}
+          {textureShown && site.texture && (
+            <>
+              Terrain texture:{' '}
+              <a className="link" href={site.texture.credit.url} target="_blank" rel="noreferrer">
+                {site.texture.credit.text}
+              </a>
+              {showRover && ' · '}
+            </>
+          )}
+          {showRover && <>Rover model:{' '}
           <a className="link" href={ROVER_CREDIT.url} target="_blank" rel="noreferrer">
             {ROVER_CREDIT.text}
           </a>
-          {site.rover !== 'Perseverance' && <> (Perseverance, standing in for {site.rover}: same chassis design)</>}
+          {site.rover !== 'Perseverance' && <> (Perseverance, standing in for {site.rover}: same chassis design)</>}</>}
         </p>
       )}
 
@@ -407,7 +510,7 @@ export function MapApp({
         </div>
       )}
 
-      <div className="map-right">
+      <div className="map-right" hidden={cameraView === 'rover'}>
       <div className="layer-panel panel" data-open={panelOpen}>
         <button className="panel-toggle" aria-expanded={panelOpen} onClick={() => setPanelOpen((o) => !o)}>
           Layers

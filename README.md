@@ -24,11 +24,17 @@ and **Top** (straight down). Everything is in GCS
 Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point.
 
 In the **Side** view, the site's terrain area (the 20 m DTM extent: ~30 km square at Jezero, 33 × 57 km
-at Gale) is lifted off the ground and pulled apart into one slab per checked data layer: slope, minerals
-and the rover layers from the ground up, with elevation on top in relief (2× at Jezero, about 1× at Gale,
-where Mount Sharp already rises 4 km). The lowest checked layer is not lifted: it stays on the ground under
-the stack. Every slab shows the base map with its
+at Gale) is lifted off the ground and pulled apart into one slab per checked data layer: the rover traverse at the bottom, then slope, minerals
+and the other rover layers, with elevation on top in relief (2× at Jezero, about 1× at Gale,
+where Mount Sharp already rises 4 km). The lowest checked layer (the traverse, when it is on) is not lifted: it
+stays on the ground under the stack. Every slab shows the base map with its
 layer's data on top, as on the map, and is labelled. The rover is hidden in this view.
+
+The **Rover** view rides on the rover at the height of its mast cameras (2.2 m) as it drives the traverse,
+looking ahead with only its wheels in view (`public/models/perseverance-wheels.glb`, cut from the rover model by
+`scripts/make_wheels_model.py`) and the route ahead drawn on the ground like a navigation app (blue ahead, gray
+where it has been). It shows only the ground (base map and, at Jezero, the crater model texture): the data
+layers, planner and panels are hidden. ▶ starts and pauses the drive.
 
 ```sh
 npm install
@@ -41,16 +47,17 @@ npm run build
 | Viking color mosaic (MDIM 2.1) | USGS / NASA Ames, hosted by Esri | 232 m/px | data |
 | CTX image mosaic (Mars color) | Murray Lab, Caltech (MRO CTX), colored with the Viking MDIM 2.1 mosaic, hosted by Esri | ~5 m/px | derived |
 | SOLMAP model texture | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
+| Crater model texture (Jezero) | `public/models/jezero-crater-texture.jpg`, the texture of "Jezero Crater (Mars)" by Gaia (artist model, not NASA data), placed by matching the model's heights to the USGS DTM (RMS 17 m), shown over the 20 m DTM area only; from close up, CTX detail is blended in | ~84 m/px | artistic |
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
 | Jezero slope hazard | Derived from that DTM (Horn method) | 20 m/px | derived |
 | Jezero minerals (off by default) | NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node), 4 observations from 2007 | 18 m/px, smoothed to ~90 m | derived |
-| Perseverance traverse and stops | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
+| Perseverance traverse | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
 | Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions | 28 sealed samples, to sol 1441 | data |
 | Three Forks sample depot | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
 | Gale elevation | USGS Astrogeology MSL Gale merged DEM (HiRISE + CTX stereo, 1 m), read from its 16 m overview and averaged to 20 m | 20 m/px | data |
 | Gale slope hazard | Derived from that DEM (Horn method) | 20 m/px | derived |
-| Curiosity traverse and stops | NASA/JPL MSL MMGIS, to sol 5073 | per drive, 1,389 stops | data |
+| Curiosity traverse | NASA/JPL MSL MMGIS, to sol 5073 | per drive | data |
 | Gale radiation (route planner) | NASA PDS PPI Node, MSL RAD RDR: total dose per observation, B (silicon) and E (tissue-equivalent) detectors | 1 sol every 40, sols 41–4841 | data |
 | Curiosity radiation dose (map layer, off by default) | NASA PDS PPI Node, MSL RAD RDR, placed with the MSL MMGIS rover positions | every sol, per rover stop: 1,317 stops, sols 3–4843 | data |
 | Gale weather (route planner) | NASA PDS Atmospheres Node, MSL REMS calibrated ENV tables: air (boom 1) and ground temperature, UV, pressure | 1 sol every 40, 240 rows per sol | data |
@@ -110,7 +117,8 @@ PDS file gives it. The tube lies under the rover, within about a meter of the po
   ArcGIS's `GeoJSONLayer`, which assumes Earth (WGS84) coordinates.
 - `src/map/SiteElevationLayer.ts`: the 3D ground (global DEM + the site's 20 m DTM, feathered
   over ~600 m at the DTM's edge).
-- `src/map/UpsampledTileLayer.ts`, `src/map/ModelTextureLayer.ts`: custom tile layers.
+- `src/map/UpsampledTileLayer.ts`, `src/map/ModelTextureLayer.ts`, `src/map/RegionTextureLayer.ts`: custom
+  tile layers. CTX only has tiles to level 12 (~5 m/px), so closer tiles are cut from those and enlarged.
 - `src/map/mars.ts`: the Mars coordinate system and tiling scheme.
 - In development, `window.solmap` holds the map, view and layers for the browser console.
 
@@ -184,6 +192,8 @@ the next drive.
 Mars color texture (`public/models/mars-8k.jpg`, 8192 × 4096, re-encoded at JPEG quality 85):
 "Mars the Red Planet" by DURVESH123, CC Attribution, Sketchfab
 (https://sketchfab.com/3d-models/mars-the-red-planet-free-7cf3b31ca60f45cc8e52f7fa863ad09a).
+Jezero crater texture (`public/models/jezero-crater-texture.jpg`): "Jezero Crater (Mars)" by Gaia, CC BY 4.0,
+Sketchfab (https://sketchfab.com/3d-models/jezero-crater-mars-f8501fbe652241b585f7734bee259ad3).
 The data sources are listed in the table above.
 
 ## Team

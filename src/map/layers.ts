@@ -16,6 +16,7 @@ import { METERS_PER_DEGREE, publicUrl } from './mars';
 import { ELEVATION_COLORS, type Site } from './sites';
 import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
 import { createModelTextureLayer } from './ModelTextureLayer';
+import { createRegionTextureLayer } from './RegionTextureLayer';
 import { createUpsampledTileLayer } from './UpsampledTileLayer';
 
 type LegendItem = { color: string; label: string };
@@ -137,11 +138,24 @@ export function layersFor(site: Site): LayerDef[] {
   const rover = site.rover;
   const list: (LayerDef | false)[] = [
     ...BASE_MAPS,
+    !!site.texture && {
+      id: 'crater-texture',
+      title: site.texture.title,
+      group: terrain,
+      visible: true,
+      kind: 'artistic',
+      resolution: '~84 m/px, with CTX detail (~5 m/px) close up',
+      description:
+        `An artist's color texture of the ${site.name} area from a 3D model, placed on the 20 m terrain. For looks, not analysis. ` +
+        'From close up, CTX image detail is multiplied in (src/map/RegionTextureLayer.ts).',
+      source: { name: site.texture.credit.text, url: site.texture.credit.url },
+      create: () => createRegionTextureLayer(publicUrl(site.texture!.file), site.texture!.box, site.extent, `${ASTRO}/CTX1/MapServer`),
+    },
     {
       id: 'elevation',
       title: 'Elevation',
       group: terrain,
-      visible: true,
+      visible: !site.texture, // where the site has a model texture, that is shown instead (the elevation colors would cover it)
       opacity: 0.7,
       kind: 'data',
       resolution: '20 m/px',
@@ -238,27 +252,6 @@ export function layersFor(site: Site): LayerDef[] {
           fields: [],
           elevationInfo: { mode: 'on-the-ground' },
           renderer: new SimpleRenderer({ symbol: { type: 'simple-line', color: [255, 255, 255, 0.95], width: 2 } }),
-        }),
-    },
-    {
-      id: 'waypoints',
-      title: 'Rover stops',
-      group: rover,
-      visible: false,
-      kind: 'data',
-      resolution: site.roverSource.stops,
-      description: `Where ${rover} stopped after each drive.`,
-      source: { name: `NASA/JPL-Caltech ${rover} (MMGIS)`, url: site.roverSource.waypoints },
-      legend: [{ color: '#ffd166', label: 'Stop' }],
-      create: () =>
-        marsGeoJSONLayer({
-          url: publicUrl(f.waypoints),
-          geometryType: 'point',
-          fields: [],
-          elevationInfo: { mode: 'on-the-ground' },
-          renderer: new SimpleRenderer({
-            symbol: { type: 'simple-marker', size: 5, color: [255, 209, 102], outline: { color: [30, 20, 10], width: 0.5 } },
-          }),
         }),
     },
     !!f.samples && {

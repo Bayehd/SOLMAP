@@ -4,8 +4,8 @@
 // exactly the same area. MDIM's colors are enhanced (dark ground turns blue), so it only adds a share of its hue.
 import Extent from '@arcgis/core/geometry/Extent';
 import BaseTileLayer, { type BaseTileLayerProperties } from '@arcgis/core/layers/BaseTileLayer';
-import esriRequest from '@arcgis/core/request';
 import { marsSR, marsTileInfo } from './mars';
+import { CTX_MAX_LEVEL, createUpsampledTileLayer } from './UpsampledTileLayer';
 
 const SIZE = 512;
 /** Darkest color luminance divided by, so near-black color pixels don't blow up. */
@@ -29,12 +29,12 @@ function pixels(img: CanvasImageSource): Uint8ClampedArray {
 }
 
 export function createMarsColorCtxLayer(ctxServiceUrl: string, colorLayer: BaseTileLayer, props: BaseTileLayerProperties = {}): BaseTileLayer {
+  // The service only has tiles to level 12; closer tiles are cut from those and enlarged (deeper requests fail with 400).
+  const ctxTiles = createUpsampledTileLayer(ctxServiceUrl, CTX_MAX_LEVEL);
   const Layer = BaseTileLayer.createSubclass({
     async fetchTile(level: number, row: number, col: number, options?: { signal?: AbortSignal }) {
       const [gray, color] = await Promise.all([
-        esriRequest(`${ctxServiceUrl}/tile/${level}/${row}/${col}`, { responseType: 'image', signal: options?.signal }).then(
-          (r) => r.data as HTMLImageElement,
-        ),
+        ctxTiles.fetchTile(level, row, col, options) as Promise<CanvasImageSource>,
         colorLayer.fetchTile(level, row, col, options) as Promise<CanvasImageSource>,
       ]);
       const g = pixels(gray);

@@ -21,6 +21,8 @@ import type { Site } from './sites';
 
 /** The slab that goes on top of the stack; the others stack from the ground up in catalog order. */
 const TOP_SLAB = 'elevation';
+/** The rover traverse goes at the bottom of the stack, on the ground. */
+const BOTTOM_SLAB = 'traverse';
 
 /** The site's area: its extent, center and size on the ground. */
 type Area = { extent: Site['extent']; center: { lon: number; lat: number }; widthM: number; heightM: number; sizeM: number };
@@ -81,7 +83,6 @@ const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData
       }
     },
   },
-  waypoints: { draw: (ctx, d) => d.stops.forEach((c) => dot(ctx, xy(d.area, c), 7, '#ffd166')) },
   samples: {
     draw: (ctx, d) =>
       d.samples.forEach((s) => dot(ctx, xy(d.area, s.c), 15, `rgb(${(SAMPLE_KINDS.find((k) => k.label === s.kind) ?? SAMPLE_KINDS[0]).color.join(',')})`)),
@@ -100,9 +101,14 @@ const SLABS: Record<string, { draw: (ctx: CanvasRenderingContext2D, d: SliceData
 
 export const STACKABLE = new Set(Object.keys(SLABS));
 
-/** Stack order of these layer ids, bottom to top: catalog order, with TOP_SLAB moved to the top. */
+/**
+ * Stack order of these layer ids, bottom to top: catalog order, with BOTTOM_SLAB moved to the bottom (so it stays on
+ * the ground) and TOP_SLAB to the top.
+ */
 export function stackOrder(ids: string[]): string[] {
-  return ids.filter((id) => SLABS[id] && id !== TOP_SLAB).concat(ids.includes(TOP_SLAB) ? [TOP_SLAB] : []);
+  const ends = [BOTTOM_SLAB, TOP_SLAB];
+  const middle = ids.filter((id) => SLABS[id] && !ends.includes(id));
+  return [...(ids.includes(BOTTOM_SLAB) ? [BOTTOM_SLAB] : []), ...middle, ...(ids.includes(TOP_SLAB) ? [TOP_SLAB] : [])];
 }
 
 /** The bottom layer is not lifted: it stays on the ground (as the map layer itself), under the slabs. */
@@ -120,7 +126,6 @@ type SliceData = {
   min: number;
   max: number;
   traverse: LonLat[][];
-  stops: LonLat[];
   samples: { c: LonLat; kind: string }[];
   depot: LonLat[];
 };
@@ -299,12 +304,11 @@ async function loadSliceData(site: Site, area: Area): Promise<SliceData> {
   const none = { features: [] };
   const json = (file: string | undefined) => (file ? fetch(publicUrl(file)).then((r) => r.json()) : Promise.resolve(none));
   const f = site.files;
-  const [dtmRaw, slopeRaw, mineralRaw, traverse, stops, samples, depot] = await Promise.all([
+  const [dtmRaw, slopeRaw, mineralRaw, traverse, samples, depot] = await Promise.all([
     raster(f.dtm),
     raster(f.slope),
     raster(f.minerals),
     json(f.traverse),
-    json(f.waypoints),
     json(f.samples),
     json(f.depot),
   ]);
@@ -329,7 +333,6 @@ async function loadSliceData(site: Site, area: Area): Promise<SliceData> {
     min,
     max,
     traverse: (traverse.features as F[]).map((f) => f.geometry.coordinates as LonLat[]),
-    stops: pts(stops),
     samples: (samples.features as F[]).map((f) => ({ c: f.geometry.coordinates as LonLat, kind: f.properties.kind ?? '' })),
     depot: pts(depot),
   };
