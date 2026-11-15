@@ -11,6 +11,7 @@ import { watch, whenOnce } from '@arcgis/core/core/reactiveUtils';
 import SceneView from '@arcgis/core/views/SceneView';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
 import { RoutePanel } from '../route/RoutePanel';
+import { LayerLegend, hasLegend } from './MapLegend';
 import { useRoutePlanner } from '../route/useRoutePlanner';
 import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
@@ -678,6 +679,30 @@ export function MapApp({
         </div>
       )}
 
+      {/* The CC BY 4.0 models must be credited where they are shown: small, at the bottom right. */}
+      {cameraView !== 'rover' && (showRover || textureShown) && (
+        <p className="model-credits">
+          {textureShown && site.texture && (
+            <>
+              Terrain texture:{' '}
+              <a href={site.texture.credit.url} target="_blank" rel="noreferrer">
+                {site.texture.credit.text} ↗
+              </a>
+            </>
+          )}
+          {textureShown && site.texture && showRover && ' · '}
+          {showRover && (
+            <>
+              Rover model:{' '}
+              <a href={ROVER_CREDIT.url} target="_blank" rel="noreferrer">
+                {ROVER_CREDIT.text} ↗
+              </a>
+              {site.rover !== 'Perseverance' && <> (standing in for {site.rover})</>}
+            </>
+          )}
+        </p>
+      )}
+
       <div className="map-right" hidden={cameraView === 'rover'}>
       <div className="layer-panel panel" data-open={panelOpen}>
         <button
@@ -694,21 +719,16 @@ export function MapApp({
             <path d="m2.5 16 9.5 5 9.5-5" />
           </svg>
         </button>
-        {panelOpen &&
-          groups.map((group) => (
+        {panelOpen && (
+        <div className="layer-list">
+          {groups.map((group) => (
             <section key={group} aria-label={group}>
               {defs.filter((l) => l.group === group && l.listed !== false).map((def) => (
-                <div key={def.id} className="layer-row">
-                  <label data-on={visibility[def.id]}>
-                    <input
-                      type={def.basemap ? 'radio' : 'checkbox'}
-                      name={def.basemap ? 'basemap' : undefined}
-                      checked={visibility[def.id]}
-                      onChange={() => toggle(def)}
-                      onClick={() => def.basemap && visibility[def.id] && toggle(def)}
-                    />
-                    <span>{def.title}</span>
-                  </label>
+                <div key={def.id} className="layer-row" data-on={visibility[def.id]}>
+                  {/* The name turns the layer on or off; a layer that is on shows its colors below it. */}
+                  <button className="layer-name" aria-pressed={visibility[def.id]} onClick={() => toggle(def)}>
+                    {def.title}
+                  </button>
                   <button
                     className="layer-info-btn"
                     aria-expanded={infoId === def.id}
@@ -721,6 +741,7 @@ export function MapApp({
                       <rect x="6.9" y="6.6" width="2.2" height="6.6" rx="1" />
                     </svg>
                   </button>
+                  {visibility[def.id] && hasLegend(def) && <LayerLegend layer={def} />}
                   {infoId === def.id && (
                     <div className="layer-info">
                       Source:{' '}
@@ -733,28 +754,7 @@ export function MapApp({
               ))}
             </section>
           ))}
-        {/* The CC BY 4.0 models must be credited where they are shown: under the layer list, with the data sources. */}
-        {panelOpen && (showRover || textureShown) && (
-          <p className="layer-credits">
-            {textureShown && site.texture && (
-              <>
-                Terrain texture:{' '}
-                <a href={site.texture.credit.url} target="_blank" rel="noreferrer">
-                  {site.texture.credit.text} ↗
-                </a>
-              </>
-            )}
-            {textureShown && site.texture && showRover && <br />}
-            {showRover && (
-              <>
-                Rover model:{' '}
-                <a href={ROVER_CREDIT.url} target="_blank" rel="noreferrer">
-                  {ROVER_CREDIT.text} ↗
-                </a>
-                {site.rover !== 'Perseverance' && <> (standing in for {site.rover})</>}
-              </>
-            )}
-          </p>
+        </div>
         )}
       </div>
       </div>

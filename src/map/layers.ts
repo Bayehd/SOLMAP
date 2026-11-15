@@ -21,6 +21,8 @@ import { createTrekTileLayer } from './TrekTileLayer';
 import { SPOT_COLOR } from './mineralSpots';
 
 type LegendItem = { color: string; label: string };
+/** A continuous color range, low to high: each stop's color at its value (stops are placed by value). */
+export type LegendRamp = { at: number; color: string; label: string }[];
 
 export type LayerDef = {
   id: string;
@@ -37,6 +39,8 @@ export type LayerDef = {
   source: { name: string; url: string };
   /** Shown under the layer when it is on. */
   legend?: LegendItem[];
+  /** Colors that run over a range of values (the map legend draws a color bar instead of the legend's squares). */
+  ramp?: LegendRamp;
   /** "data" = a measurement; "derived" = computed from one; "artistic" = for looks only. */
   kind: 'data' | 'derived' | 'artistic';
   create: () => Layer;
@@ -130,6 +134,10 @@ const THERMAL: LayerDef[] = [
       { color: '#202020', label: 'Cooler' },
       { color: '#f0f0f0', label: 'Warmer' },
     ],
+    ramp: [
+      { at: 0, color: '#202020', label: 'Cooler' },
+      { at: 1, color: '#f0f0f0', label: 'Warmer' },
+    ],
     // Trek has tiles to level 9 (~80 m per pixel); closer tiles are cut from those.
     create: () => createTrekTileLayer('THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018', 9),
   },
@@ -147,6 +155,10 @@ const THERMAL: LayerDef[] = [
     legend: [
       { color: '#202020', label: 'Cools fast (dust, sand)' },
       { color: '#f0f0f0', label: 'Stays warm (rock)' },
+    ],
+    ramp: [
+      { at: 0, color: '#202020', label: 'Cools fast (dust, sand)' },
+      { at: 1, color: '#f0f0f0', label: 'Stays warm (rock)' },
     ],
     create: () => createTrekTileLayer('THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018', 9),
   },
@@ -193,6 +205,7 @@ export function layersFor(site: Site): LayerDef[] {
       description: `Elevation of the ${rover} landing area, shaded. Meters relative to the MOLA areoid.`,
       source: site.dtmSource,
       legend: ramp.filter((_, i, a) => i === 0 || i === a.length - 1).map((s) => ({ color: rgb(s.color), label: `${s.at} m` })),
+      ramp: ramp.map((s) => ({ at: s.at, color: rgb(s.color), label: `${s.at.toLocaleString('en-US')} m` })),
       create: () =>
         new ImageryTileLayer({
           url: publicUrl(f.dtm),
@@ -225,7 +238,7 @@ export function layersFor(site: Site): LayerDef[] {
       resolution: '20 m/px',
       description: 'Ground slope computed from the 20 m DTM (Horn method), in walking classes. Class limits are assumptions (src/map/layers.ts).',
       source: { name: `Derived from the ${site.short} DTM by scripts/build_${site.id}_layers.py`, url: site.dtmSource.url },
-      legend: SLOPE_CLASSES.map((c) => ({ color: c.painted ? rgb(c.color) : 'transparent', label: c.painted ? c.label : `${c.label}: not colored` })),
+      legend: SLOPE_CLASSES.filter((c) => c.painted).map((c) => ({ color: rgb(c.color), label: c.label })),
       create: () => {
         // Class i covers [previous max, max). Unmatched (unpainted) slopes become NoData, i.e. transparent.
         const classes = SLOPE_CLASSES.map((c, i) => ({ ...c, min: i === 0 ? 0 : SLOPE_CLASSES[i - 1].max, value: i + 1 }));
@@ -386,6 +399,7 @@ export function layersFor(site: Site): LayerDef[] {
         `Radiation dose ${rover} measured at the surface at each place it stopped: the daily absorbed dose in silicon, averaged over the sols spent there. It rises and falls with the 11-year solar cycle (the Sun's activity shields Mars from galactic cosmic rays).`,
       source: { name: 'NASA PDS PPI Node, MSL RAD RDR + MSL MMGIS rover positions', url: 'https://pds.nasa.gov/ds-view/pds/viewDataset.jsp?dsid=MSL-M-RAD-3-RDR-V1.0' },
       legend: RAD_STOPS.map((s) => ({ color: `rgb(${s.color.join(',')})`, label: `${s.value} µGy/day` })),
+      ramp: RAD_STOPS.map((s) => ({ at: s.value, color: rgb(s.color), label: `${s.value} µGy/day` })),
       create: () =>
         marsGeoJSONLayer({
           url: publicUrl(f.radiation!),
