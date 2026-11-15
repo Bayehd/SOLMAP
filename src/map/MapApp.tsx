@@ -13,7 +13,7 @@ import { RoutePanel } from '../route/RoutePanel';
 import { useRoutePlanner } from '../route/useRoutePlanner';
 import { LAYERS, MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, type LayerDef } from './layers';
 import { createJezeroElevationLayer } from './JezeroElevationLayer';
-import { STACKABLE, createLayerStack, type StackSlab } from './layerStack';
+import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
 import { JEZERO_DTM_EXTENT, LANDING_SITE, jezeroExtent, landingExtent, marsSR } from './mars';
 import { ROVER_CREDIT, attachRover, createRoverLayer, type DriveState, type RoverControl } from './rover';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
@@ -138,7 +138,10 @@ export function MapApp({
 
   // In the Side view the data layers leave the ground for the stack; the ground keeps the base maps.
   useEffect(() => {
-    for (const def of LAYERS) layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id));
+    // The bottom layer of the stack stays on the ground.
+    const ground = groundLayerOf(LAYERS.filter((l) => visibility[l.id]).map((l) => l.id));
+    for (const def of LAYERS)
+      layers[def.id].visible = visibility[def.id] && !(cameraView === 'side' && STACKABLE.has(def.id) && def.id !== ground);
   }, [visibility, layers, cameraView]);
 
   useEffect(() => {
@@ -247,7 +250,7 @@ export function MapApp({
         if (cancelled) return;
         setSlabs(placed);
         const view = viewRef.current;
-        if (framed.current || !view || !placed.length || followRef.current) return;
+        if (framed.current || !view || !stack.stack.graphics.length || followRef.current) return;
         framed.current = true;
         view
           .goTo({ target: stack.stack.graphics.toArray(), heading: SIDE_HEADING, tilt: SIDE_TILT }, { duration: 1500 })
