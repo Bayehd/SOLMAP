@@ -137,6 +137,14 @@
   function next() { if (!launchIfNeeded()) Reveal.next(); }
 
   Reveal.on('slidechanged', e => {
+    // tracks -> sample: push the camera forward into the previous scene while the next one fades in
+    document.querySelectorAll('.slide-background.zoom-into').forEach(b => b.classList.remove('zoom-into'));
+    if (e.currentSlide.hasAttribute('data-zoom-from-prev') && e.previousSlide && e.indexh > Reveal.getIndices(e.previousSlide).h) {
+      const bg = Reveal.getSlideBackground(e.previousSlide);
+      if (bg) bg.classList.add('zoom-into');
+      const cur = Reveal.getSlideBackground(e.currentSlide);
+      if (cur) { cur.classList.remove('zoom-arrive'); void cur.offsetWidth; cur.classList.add('zoom-arrive'); }
+    }
     setTimeout(fogClear, 500); // new slide is revealed as the smoke clears
     if (smoke.raf) { smoke.emitting = false; smoke.fading = true; }
     // reset launchers on the slide we left so it can be replayed

@@ -231,3 +231,10 @@ table.cmp tr:last-child th, table.cmp tr:last-child td { border-bottom:0; }
   70%  { transform:translateY(-4%); }
   100% { transform:translateY(0); }
 }
+
+/* tracks -> sample zoom */
+.reveal .slide-background.zoom-into .slide-background-content { animation:zoomInto 1.6s ease-in forwards; }
+@keyframes zoomInto { from{transform:scale(1.1)} to{transform:scale(1.45) translate(-4%,-3%)} }
+.reveal .slide-background.zoom-arrive.present .slide-background-content { animation:zoomArrive 1.6s ease-out both, drift 14s ease-out 1.6s both; }
+@keyframes zoomArrive { from{transform:scale(1.25)} to{transform:scale(1.06)} }
+.reveal .slide-background.zoom-arrive { transition-duration:1.4s !important; }
