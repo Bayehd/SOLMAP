@@ -25,8 +25,7 @@ export const ASSUMPTIONS = {
   comfortSlopeDeg: 10,
   /** Flat-ground walking speed in a suit. Effort scales it down on slopes. */
   walkSpeedKmh: 3,
-  /** Hypothetical base antenna (same site and heights as scripts/build_jezero_safety_layers.py). */
-  base: { name: 'Landing site (hypothetical base antenna)', lon: 77.45088572, lat: 18.44462715 },
+  /** A hypothetical base antenna stands at the site's landing point (as in scripts/build_jezero_safety_layers.py). */
   baseAntennaM: 3,
   walkerAntennaM: 2,
   /** Relative increase of galactic cosmic ray dose per km of elevation (less air overhead). MODELLED. */

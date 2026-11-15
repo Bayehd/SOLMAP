@@ -1,5 +1,7 @@
-// The layer catalog: every data layer in the app, with its source.
-// To add a layer, add an entry to LAYERS. Each entry builds one ArcGIS layer in GCS Mars 2000 (wkid 104971).
+// The layer catalog: every data layer of a landing site, with its source.
+// layersFor(site) lists the base maps (the same everywhere) and the site's own layers, only those it has data for.
+// Each entry builds one ArcGIS layer in GCS Mars 2000 (wkid 104971). Ids are the same at every site
+// ('elevation', 'traverse', ...), so the map, the Side stack and the planner find them by id.
 import type Layer from '@arcgis/core/layers/Layer';
 import ElevationLayer from '@arcgis/core/layers/ElevationLayer';
 import ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
@@ -11,18 +13,17 @@ import UniqueValueRenderer from '@arcgis/core/renderers/UniqueValueRenderer';
 import MultipartColorRamp from '@arcgis/core/rest/support/MultipartColorRamp';
 import { marsGeoJSONLayer } from './geojson';
 import { METERS_PER_DEGREE, publicUrl } from './mars';
+import { ELEVATION_COLORS, type Site } from './sites';
 import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
 import { createModelTextureLayer } from './ModelTextureLayer';
 import { createUpsampledTileLayer } from './UpsampledTileLayer';
-
-type LayerGroup = 'Base map' | 'Jezero terrain (20 m)' | 'Jezero minerals' | 'Perseverance';
 
 type LegendItem = { color: string; label: string };
 
 export type LayerDef = {
   id: string;
   title: string;
-  group: LayerGroup;
+  group: string; // 'Base map', '<site> terrain (20 m)', '<site> minerals' or the rover's name
   /** Base maps are exclusive: turning one on turns the others off. */
   basemap?: boolean;
   visible: boolean;
@@ -64,14 +65,9 @@ export const MINERAL_CLASSES = [
 
 const rgb = (c: readonly number[]) => `rgb(${c.join(',')})`;
 
-/** Elevation colors for the Jezero DTM, low to high (meters). */
-export const ELEVATION_RAMP: { at: number; color: number[] }[] = [
-  { at: -2711, color: [43, 24, 92] },
-  { at: -2400, color: [44, 104, 160] },
-  { at: -2100, color: [74, 168, 120] },
-  { at: -1800, color: [230, 196, 92] },
-  { at: -1516, color: [250, 245, 225] },
-];
+/** Elevation colors for a site's DTM, low to high (meters). */
+export const elevationRamp = (site: Site): { at: number; color: number[] }[] =>
+  site.elevationStops.map((at, i) => ({ at, color: ELEVATION_COLORS[i] }));
 
 /** Perseverance sample types, as `kind` in m20_samples.geojson (scripts/build_jezero_layers.py). */
 export const SAMPLE_KINDS = [
@@ -80,7 +76,8 @@ export const SAMPLE_KINDS = [
   { label: 'Atmospheric', color: [235, 235, 235] },
 ] as const;
 
-export const LAYERS: LayerDef[] = [
+/** Base maps: global, the same at every site. */
+const BASE_MAPS: LayerDef[] = [
   {
     id: 'mdim',
     title: 'Viking color mosaic (MDIM 2.1)',
@@ -123,200 +120,209 @@ export const LAYERS: LayerDef[] = [
     source: { name: 'Murray Lab, Caltech (MRO CTX) + USGS / NASA Ames (Viking MDIM 2.1), hosted by Esri', url: `${ASTRO}/CTX1/MapServer` },
     create: () => createMarsColorCtxLayer(`${ASTRO}/CTX1/MapServer`, createUpsampledTileLayer(`${ASTRO}/MDIM/MapServer`, 7)),
   },
-  {
-    id: 'jezero-elevation',
-    title: 'Elevation',
-    group: 'Jezero terrain (20 m)',
-    visible: true,
-    opacity: 0.7,
-    kind: 'data',
-    resolution: '20 m/px',
-    description: 'Elevation of the Perseverance landing area, shaded. Meters relative to the MOLA areoid.',
-    source: {
-      name: 'USGS Astrogeology, Mars 2020 TRN CTX DTM (Fergason et al. 2020)',
-      url: 'https://planetarymaps.usgs.gov/mosaic/mars2020_trn/CTX/',
+];
+
+/** Every layer of a site: the base maps, then the site's terrain, minerals and rover layers (where it has data). */
+export function layersFor(site: Site): LayerDef[] {
+  const terrain = `${site.short} terrain (20 m)`;
+  const f = site.files;
+  const ramp = elevationRamp(site);
+  const rover = site.rover;
+  const list: (LayerDef | false)[] = [
+    ...BASE_MAPS,
+    {
+      id: 'elevation',
+      title: 'Elevation',
+      group: terrain,
+      visible: true,
+      opacity: 0.7,
+      kind: 'data',
+      resolution: '20 m/px',
+      description: `Elevation of the ${rover} landing area, shaded. Meters relative to the MOLA areoid.`,
+      source: site.dtmSource,
+      legend: ramp.filter((_, i, a) => i === 0 || i === a.length - 1).map((s) => ({ color: rgb(s.color), label: `${s.at} m` })),
+      create: () =>
+        new ImageryTileLayer({
+          url: publicUrl(f.dtm),
+          renderer: new RasterShadedReliefRenderer({
+            hillshadeType: 'multi-directional',
+            altitude: 45,
+            azimuth: 315,
+            // The grid is in degrees and heights in meters.
+            zFactor: 1 / METERS_PER_DEGREE,
+            scalingType: 'none',
+            colorRamp: MultipartColorRamp.fromJSON({
+              type: 'multipart',
+              colorRamps: ramp.slice(1).map((s, i) => ({
+                type: 'algorithmic',
+                algorithm: 'esriCIELabAlgorithm',
+                fromColor: [...ramp[i].color, 255],
+                toColor: [...s.color, 255],
+              })),
+            }),
+          }),
+        }),
     },
-    legend: ELEVATION_RAMP.filter((_, i, a) => i === 0 || i === a.length - 1).map((s) => ({ color: rgb(s.color), label: `${s.at} m` })),
-    create: () =>
-      new ImageryTileLayer({
-        url: publicUrl('data/jezero/ctx_dtm_20m.tif'),
-        renderer: new RasterShadedReliefRenderer({
-          hillshadeType: 'multi-directional',
-          altitude: 45,
-          azimuth: 315,
-          // The grid is in degrees and heights in meters.
-          zFactor: 1 / METERS_PER_DEGREE,
-          scalingType: 'none',
-          colorRamp: MultipartColorRamp.fromJSON({
-            type: 'multipart',
-            colorRamps: ELEVATION_RAMP.slice(1).map((s, i) => ({
-              type: 'algorithmic',
-              algorithm: 'esriCIELabAlgorithm',
-              fromColor: [...ELEVATION_RAMP[i].color, 255],
-              toColor: [...s.color, 255],
+    {
+      id: 'slope',
+      title: 'Slope hazard',
+      group: terrain,
+      visible: false,
+      opacity: 0.65,
+      kind: 'derived',
+      resolution: '20 m/px',
+      description: 'Ground slope computed from the 20 m DTM (Horn method), in walking classes. Class limits are assumptions (src/map/layers.ts).',
+      source: { name: `Derived from the ${site.short} DTM by scripts/build_${site.id}_layers.py`, url: site.dtmSource.url },
+      legend: SLOPE_CLASSES.map((c) => ({ color: c.painted ? rgb(c.color) : 'transparent', label: c.painted ? c.label : `${c.label}: not colored` })),
+      create: () => {
+        // Class i covers [previous max, max). Unmatched (unpainted) slopes become NoData, i.e. transparent.
+        const classes = SLOPE_CLASSES.map((c, i) => ({ ...c, min: i === 0 ? 0 : SLOPE_CLASSES[i - 1].max, value: i + 1 }));
+        const painted = classes.filter((c) => c.painted);
+        return new ImageryTileLayer({
+          url: publicUrl(f.slope),
+          rasterFunction: rasterFunctionUtils.remap({
+            rangeMaps: painted.map((c) => ({ range: [c.min, c.max === 90 ? 91 : c.max], output: c.value })),
+            allowUnmatched: false,
+          }),
+          renderer: new RasterColormapRenderer({
+            colormapInfos: painted.map((c) => ({ value: c.value, color: [...c.color], label: c.label })),
+          }),
+        });
+      },
+    },
+    !!f.minerals && {
+      id: 'minerals',
+      title: 'Minerals (CRISM)',
+      group: `${site.short} minerals`,
+      visible: false,
+      opacity: 0.85,
+      kind: 'derived',
+      resolution: '18 m/px, smoothed to ~90 m',
+      description:
+        'Minerals detected from orbit by CRISM, the MRO spectrometer: 4 observations (2007) covering about half of the 20 m area. ' +
+        'Uncolored: nothing detected, or no CRISM coverage. Indicative only: detection thresholds are assumptions (scripts/build_jezero_minerals.py).',
+      source: {
+        name: 'NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node)',
+        url: 'https://pds-geosciences.wustl.edu/missions/mro/crism.htm',
+      },
+      legend: MINERAL_CLASSES.map((c) => ({ color: rgb(c.color), label: c.label })),
+      create: () =>
+        new ImageryTileLayer({
+          url: publicUrl(f.minerals!),
+          renderer: new RasterColormapRenderer({
+            colormapInfos: MINERAL_CLASSES.map((c, i) => ({ value: i + 1, color: [...c.color], label: c.label })),
+          }),
+        }),
+    },
+    {
+      id: 'traverse',
+      title: 'Rover traverse',
+      group: rover,
+      visible: true,
+      kind: 'data',
+      resolution: site.roverSource.until,
+      description: `The path ${rover} drove from landing.`,
+      source: { name: `NASA/JPL-Caltech ${rover} (MMGIS)`, url: site.roverSource.traverse },
+      legend: [{ color: '#ffffff', label: 'Drive path' }],
+      create: () =>
+        marsGeoJSONLayer({
+          url: publicUrl(f.traverse),
+          geometryType: 'polyline',
+          fields: [],
+          elevationInfo: { mode: 'on-the-ground' },
+          renderer: new SimpleRenderer({ symbol: { type: 'simple-line', color: [255, 255, 255, 0.95], width: 2 } }),
+        }),
+    },
+    {
+      id: 'waypoints',
+      title: 'Rover stops',
+      group: rover,
+      visible: false,
+      kind: 'data',
+      resolution: site.roverSource.stops,
+      description: `Where ${rover} stopped after each drive.`,
+      source: { name: `NASA/JPL-Caltech ${rover} (MMGIS)`, url: site.roverSource.waypoints },
+      legend: [{ color: '#ffd166', label: 'Stop' }],
+      create: () =>
+        marsGeoJSONLayer({
+          url: publicUrl(f.waypoints),
+          geometryType: 'point',
+          fields: [],
+          elevationInfo: { mode: 'on-the-ground' },
+          renderer: new SimpleRenderer({
+            symbol: { type: 'simple-marker', size: 5, color: [255, 209, 102], outline: { color: [30, 20, 10], width: 0.5 } },
+          }),
+        }),
+    },
+    !!f.samples && {
+      id: 'samples',
+      title: 'Samples collected',
+      group: rover,
+      visible: true,
+      kind: 'data',
+      resolution: '28 sealed samples, to sol 1441',
+      description: 'Where Perseverance sealed each of its samples, placed at the rover position on that sol. Click a point for its name.',
+      source: { name: 'NASA Mars 2020 rock sample list + MMGIS rover positions', url: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/' },
+      legend: SAMPLE_KINDS.map((k) => ({ color: `rgb(${k.color.join(',')})`, label: k.label })),
+      create: () =>
+        marsGeoJSONLayer({
+          url: publicUrl(f.samples!),
+          geometryType: 'point',
+          fields: [
+            { name: 'number', type: 'integer' },
+            { name: 'name', type: 'string' },
+            { name: 'kind', type: 'string' },
+            { name: 'sol', type: 'integer' },
+          ],
+          outFields: ['*'],
+          elevationInfo: { mode: 'on-the-ground' },
+          renderer: new UniqueValueRenderer({
+            field: 'kind',
+            uniqueValueInfos: SAMPLE_KINDS.map((k) => ({
+              value: k.label,
+              label: k.label,
+              symbol: { type: 'simple-marker', size: 6, color: [...k.color], outline: { color: [20, 20, 20], width: 0.75 } },
             })),
           }),
         }),
-      }),
-  },
-  {
-    id: 'jezero-slope',
-    title: 'Slope hazard',
-    group: 'Jezero terrain (20 m)',
-    visible: false,
-    opacity: 0.65,
-    kind: 'derived',
-    resolution: '20 m/px',
-    description: 'Ground slope computed from the 20 m DTM (Horn method), in walking classes. Class limits are assumptions (src/map/layers.ts).',
-    source: { name: 'Derived from the USGS CTX DTM by scripts/build_jezero_layers.py', url: 'https://planetarymaps.usgs.gov/mosaic/mars2020_trn/CTX/' },
-    legend: SLOPE_CLASSES.map((c) => ({ color: c.painted ? rgb(c.color) : 'transparent', label: c.painted ? c.label : `${c.label}: not colored` })),
-    create: () => {
-      // Class i covers [previous max, max). Unmatched (unpainted) slopes become NoData, i.e. transparent.
-      const classes = SLOPE_CLASSES.map((c, i) => ({ ...c, min: i === 0 ? 0 : SLOPE_CLASSES[i - 1].max, value: i + 1 }));
-      const painted = classes.filter((c) => c.painted);
-      return new ImageryTileLayer({
-        url: publicUrl('data/jezero/ctx_slope_20m.tif'),
-        rasterFunction: rasterFunctionUtils.remap({
-          rangeMaps: painted.map((c) => ({ range: [c.min, c.max === 90 ? 91 : c.max], output: c.value })),
-          allowUnmatched: false,
-        }),
-        renderer: new RasterColormapRenderer({
-          colormapInfos: painted.map((c) => ({ value: c.value, color: [...c.color], label: c.label })),
-        }),
-      });
     },
-  },
-  {
-    id: 'jezero-minerals',
-    title: 'Minerals (CRISM)',
-    group: 'Jezero minerals',
-    visible: false,
-    opacity: 0.85,
-    kind: 'derived',
-    resolution: '18 m/px, smoothed to ~90 m',
-    description:
-      'Minerals detected from orbit by CRISM, the MRO spectrometer: 4 observations (2007) covering about half of the 20 m area. ' +
-      'Uncolored: nothing detected, or no CRISM coverage. Indicative only: detection thresholds are assumptions (scripts/build_jezero_minerals.py).',
-    source: {
-      name: 'NASA MRO CRISM MTRDR summary parameters (PDS Geosciences Node)',
-      url: 'https://pds-geosciences.wustl.edu/missions/mro/crism.htm',
+    !!f.depot && {
+      id: 'depot',
+      title: 'Three Forks sample depot',
+      group: rover,
+      visible: true,
+      kind: 'data',
+      resolution: '10 tubes, dropped sols 653–690',
+      description:
+        'The 10 sample tubes Perseverance left on the ground for a future return mission, at the rover position of each drop. Click a point for its name.',
+      source: {
+        name: 'NASA PDS Geosciences Node, Mars 2020 Three Forks depot',
+        url: 'https://pds-geosciences.wustl.edu/m2020/urn-nasa-pds-mars2020_sample_depot_three_forks/miscellaneous/sample_metadata/sample_tube_locations.xml',
+      },
+      legend: [{ color: 'rgb(255,61,200)', label: 'Depot tube' }],
+      create: () =>
+        marsGeoJSONLayer({
+          url: publicUrl(f.depot!),
+          geometryType: 'point',
+          fields: [
+            { name: 'name', type: 'string' },
+            { name: 'sol', type: 'integer' },
+          ],
+          outFields: ['*'],
+          elevationInfo: { mode: 'on-the-ground' },
+          renderer: new SimpleRenderer({
+            symbol: { type: 'simple-marker', style: 'diamond', size: 7, color: [255, 61, 200], outline: { color: [20, 20, 20], width: 0.75 } },
+          }),
+        }),
     },
-    legend: MINERAL_CLASSES.map((c) => ({ color: rgb(c.color), label: c.label })),
-    create: () =>
-      new ImageryTileLayer({
-        url: publicUrl('data/jezero/crism_minerals_20m.tif'),
-        renderer: new RasterColormapRenderer({
-          colormapInfos: MINERAL_CLASSES.map((c, i) => ({ value: i + 1, color: [...c.color], label: c.label })),
-        }),
-      }),
-  },
-  {
-    id: 'm20-traverse',
-    title: 'Rover traverse',
-    group: 'Perseverance',
-    visible: true,
-    kind: 'data',
-    resolution: 'drive by drive, to sol 2022',
-    description: 'The path Perseverance drove from landing (February 2021).',
-    source: { name: 'NASA/JPL-Caltech Mars 2020 (MMGIS)', url: 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_traverse.json' },
-    legend: [{ color: '#ffffff', label: 'Drive path' }],
-    create: () =>
-      marsGeoJSONLayer({
-        url: publicUrl('data/jezero/m20_traverse.geojson'),
-        geometryType: 'polyline',
-        fields: [],
-        elevationInfo: { mode: 'on-the-ground' },
-        renderer: new SimpleRenderer({ symbol: { type: 'simple-line', color: [255, 255, 255, 0.95], width: 2 } }),
-      }),
-  },
-  {
-    id: 'm20-waypoints',
-    title: 'Rover stops',
-    group: 'Perseverance',
-    visible: false,
-    kind: 'data',
-    resolution: '708 end-of-drive positions',
-    description: 'Where Perseverance stopped after each drive.',
-    source: { name: 'NASA/JPL-Caltech Mars 2020 (MMGIS)', url: 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_waypoints.json' },
-    legend: [{ color: '#ffd166', label: 'Stop' }],
-    create: () =>
-      marsGeoJSONLayer({
-        url: publicUrl('data/jezero/m20_waypoints.geojson'),
-        geometryType: 'point',
-        fields: [],
-        elevationInfo: { mode: 'on-the-ground' },
-        renderer: new SimpleRenderer({
-          symbol: { type: 'simple-marker', size: 5, color: [255, 209, 102], outline: { color: [30, 20, 10], width: 0.5 } },
-        }),
-      }),
-  },
-  {
-    id: 'm20-samples',
-    title: 'Samples collected',
-    group: 'Perseverance',
-    visible: true,
-    kind: 'data',
-    resolution: '28 sealed samples, to sol 1441',
-    description:
-      'Where Perseverance sealed each of its samples, placed at the rover position on that sol. Click a point for its name.',
-    source: { name: 'NASA Mars 2020 rock sample list + MMGIS rover positions', url: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/' },
-    legend: SAMPLE_KINDS.map((k) => ({ color: `rgb(${k.color.join(',')})`, label: k.label })),
-    create: () =>
-      marsGeoJSONLayer({
-        url: publicUrl('data/jezero/m20_samples.geojson'),
-        geometryType: 'point',
-        fields: [
-          { name: 'number', type: 'integer' },
-          { name: 'name', type: 'string' },
-          { name: 'kind', type: 'string' },
-          { name: 'sol', type: 'integer' },
-        ],
-        outFields: ['*'],
-        elevationInfo: { mode: 'on-the-ground' },
-        renderer: new UniqueValueRenderer({
-          field: 'kind',
-          uniqueValueInfos: SAMPLE_KINDS.map((k) => ({
-            value: k.label,
-            label: k.label,
-            symbol: { type: 'simple-marker', size: 6, color: [...k.color], outline: { color: [20, 20, 20], width: 0.75 } },
-          })),
-        }),
-      }),
-  },
-  {
-    id: 'm20-depot',
-    title: 'Three Forks sample depot',
-    group: 'Perseverance',
-    visible: true,
-    kind: 'data',
-    resolution: '10 tubes, dropped sols 653–690',
-    description:
-      'The 10 sample tubes Perseverance left on the ground for a future return mission, at the rover position of each drop. Click a point for its name.',
-    source: {
-      name: 'NASA PDS Geosciences Node, Mars 2020 Three Forks depot',
-      url: 'https://pds-geosciences.wustl.edu/m2020/urn-nasa-pds-mars2020_sample_depot_three_forks/miscellaneous/sample_metadata/sample_tube_locations.xml',
-    },
-    legend: [{ color: 'rgb(255,61,200)', label: 'Depot tube' }],
-    create: () =>
-      marsGeoJSONLayer({
-        url: publicUrl('data/jezero/m20_depot.geojson'),
-        geometryType: 'point',
-        fields: [
-          { name: 'name', type: 'string' },
-          { name: 'sol', type: 'integer' },
-        ],
-        outFields: ['*'],
-        elevationInfo: { mode: 'on-the-ground' },
-        renderer: new SimpleRenderer({
-          symbol: { type: 'simple-marker', style: 'diamond', size: 7, color: [255, 61, 200], outline: { color: [20, 20, 20], width: 0.75 } },
-        }),
-      }),
-  },
-];
+  ];
+  return list.filter((l): l is LayerDef => !!l);
+}
+
 
 /**
- * The 3D ground outside Jezero: NASA MGS MOLA elevation (463 m), meters above the MOLA areoid,
- * hosted by Esri (source: USGS, NASA). Refined by the Jezero 20 m DTM; see JezeroElevationLayer.
+ * The 3D ground outside the site: NASA MGS MOLA elevation (463 m), meters above the MOLA areoid,
+ * hosted by Esri (source: USGS, NASA). Refined by the site's 20 m DTM; see SiteElevationLayer.
  */
 const GLOBAL_ELEVATION_URL = `${ASTRO}/MOLA/ImageServer`;
 export const globalElevationLayer = () => new ElevationLayer({ url: GLOBAL_ELEVATION_URL });

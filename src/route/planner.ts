@@ -1,4 +1,4 @@
-// Safest-route planner. Pure functions over a window of the 20 m Jezero terrain model, so they can be
+// Safest-route planner. Pure functions over a window of the site's 20 m terrain model (Jezero or Gale), so they can be
 // tested without a browser. Data loading is in loadGrid.ts, the React side in useRoutePlanner.ts.
 //
 // What the cost of a step is made of (see config.ts for the weights and their meaning):

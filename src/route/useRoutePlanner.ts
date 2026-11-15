@@ -6,14 +6,16 @@ import Graphic from '@arcgis/core/Graphic';
 import Point from '@arcgis/core/geometry/Point';
 import Polyline from '@arcgis/core/geometry/Polyline';
 import { marsSR } from '../map/mars';
-import { ASSUMPTIONS, DEFAULT_WEIGHTS, LIMITS, type Weights } from './config';
-import { insideDtm, loadGrid } from './loadGrid';
+import { insideSite, type Site } from '../map/sites';
+import { DEFAULT_WEIGHTS, LIMITS, type Weights } from './config';
+import { loadGrid } from './loadGrid';
 import { planRoute, prepareGrid, type Grid, type LonLat, type Plan } from './planner';
 
 export type Picking = 'start' | 'end' | null;
 type Status = { kind: 'idle' } | { kind: 'working' } | { kind: 'error'; message: string };
 
-export function useRoutePlanner(routeLayer: GraphicsLayer, layers: Record<string, unknown>) {
+export function useRoutePlanner(routeLayer: GraphicsLayer, layers: Record<string, unknown>, site: Site) {
+  const base = site.landing; // hypothetical base antenna
   const [picking, setPicking] = useState<Picking>(null);
   const [start, setStart] = useState<LonLat | null>(null);
   const [end, setEnd] = useState<LonLat | null>(null);
@@ -29,8 +31,8 @@ export function useRoutePlanner(routeLayer: GraphicsLayer, layers: Record<string
   const pick = useCallback((lon: number, lat: number) => {
     const which = pickingRef.current;
     if (!which) return false;
-    if (!insideDtm({ lon, lat })) {
-      setNotice('That point is outside the 20 m terrain model of Jezero. Pick a point inside the Jezero area.');
+    if (!insideSite(site, { lon, lat })) {
+      setNotice(`That point is outside the 20 m terrain model of ${site.short}. Pick a point inside the ${site.short} area.`);
       return true;
     }
     setNotice(null);
@@ -38,7 +40,7 @@ export function useRoutePlanner(routeLayer: GraphicsLayer, layers: Record<string
     else setEnd({ lon, lat });
     setPicking(null);
     return true;
-  }, []);
+  }, [site]);
 
   const clear = useCallback(() => {
     setStart(null); setEnd(null); setPlan(null); setPicking(null); setNotice(null); setStatus({ kind: 'idle' });
@@ -53,9 +55,9 @@ export function useRoutePlanner(routeLayer: GraphicsLayer, layers: Record<string
         setStatus({ kind: 'working' });
         const key = `${start.lon},${start.lat},${end.lon},${end.lat}`;
         if (grid.current?.key !== key) {
-          const g = await loadGrid(layers['jezero-elevation'] as ImageryTileLayer, layers['jezero-minerals'] as ImageryTileLayer, [start, end, ASSUMPTIONS.base]);
+          const g = await loadGrid(site, layers['elevation'] as ImageryTileLayer, layers['minerals'] as ImageryTileLayer | undefined, [start, end, base]);
           await new Promise((r) => setTimeout(r, 0)); // let the "working" state paint before the heavy part
-          prepareGrid(g, ASSUMPTIONS.base);
+          prepareGrid(g, base);
           grid.current = { key, g };
         }
         if (cancelled) return;
@@ -67,7 +69,7 @@ export function useRoutePlanner(routeLayer: GraphicsLayer, layers: Record<string
       }
     }, 150);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [start, end, weights, layers]);
+  }, [start, end, weights, layers, site, base]);
 
   // Draw on the map.
   useEffect(() => {

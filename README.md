@@ -17,13 +17,16 @@ Mars data is spread across missions, formats and archives. An explorer planning 
 
 ## The app
 
-An ArcGIS Maps SDK for JavaScript map of Mars with real data layers, shown on a 3D globe with
-three views of Jezero: **3D** (tilted), **Side** and **Top** (straight down). Everything is in GCS
+An ArcGIS Maps SDK for JavaScript map of Mars with real data layers, shown on a 3D globe. The home
+page has two landing areas: **Jezero Crater** (Perseverance) and **Gale Crater** (Curiosity). Each opens
+the same app with the layers that site has data for, and three views of it: **3D** (tilted), **Side**
+and **Top** (straight down). Everything is in GCS
 Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point.
 
-In the **Side** view, the Jezero terrain area (the 20 m DTM extent, ~30 km square) is lifted off the
-ground and pulled apart into one slab per checked data layer: slope, minerals and the Perseverance
-layers from the ground up, with elevation on top in 2× relief. Every slab shows the base map with its
+In the **Side** view, the site's terrain area (the 20 m DTM extent: ~30 km square at Jezero, 33 × 57 km
+at Gale) is lifted off the ground and pulled apart into one slab per checked data layer: slope, minerals
+and the rover layers from the ground up, with elevation on top in relief (2× at Jezero, about 1× at Gale,
+where Mount Sharp already rises 4 km). Every slab shows the base map with its
 layer's data on top, as on the map, and is labelled. The rover is hidden in this view.
 
 ```sh
@@ -44,6 +47,22 @@ npm run build
 | Perseverance traverse and stops | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
 | Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions | 28 sealed samples, to sol 1441 | data |
 | Three Forks sample depot | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
+| Gale elevation | USGS Astrogeology MSL Gale merged DEM (HiRISE + CTX stereo, 1 m), read from its 16 m overview and averaged to 20 m | 20 m/px | data |
+| Gale slope hazard | Derived from that DEM (Horn method) | 20 m/px | derived |
+| Curiosity traverse and stops | NASA/JPL MSL MMGIS, to sol 5073 | per drive, 1,389 stops | data |
+| Gale radiation (route planner) | NASA PDS PPI Node, MSL RAD RDR: total dose per observation, B (silicon) and E (tissue-equivalent) detectors | 1 sol every 40, sols 41–4841 | data |
+| Gale weather (route planner) | NASA PDS Atmospheres Node, MSL REMS calibrated ENV tables: air (boom 1) and ground temperature, UV, pressure | 1 sol every 40, 240 rows per sol | data |
+
+At Gale the rover is the same 3D model (Perseverance), standing in for Curiosity: Perseverance was built on
+Curiosity's design, with the same size and six wheels. Gale has no mineral, sample or depot layer yet.
+
+**Radiation at Gale is measured, not modelled:** the route planner shows the dose rate Curiosity's RAD
+measured (tissue-equivalent detector, duration-weighted mean per sol, median 9.5 µGy/h ≈ 0.23 mGy per sol;
+NASA's published value is 0.21 ± 0.04 mGy/day) and the dose on the walk at that rate. *Where* the dose is
+higher along a route (sky openness, elevation) is still modelled, as at Jezero. RAD sits on the rover deck,
+not in a suit, so the walk dose is indicative. The REMS block gives typical daily lows and highs of air and
+ground temperature, midday UV and the seasonal pressure range. Jezero keeps the modelled radiation index:
+Perseverance has no RAD.
 
 **Assumption:** CTX is grayscale. To show it in Mars color, each pixel keeps the CTX brightness and is
 tinted with a butterscotch tan like Perseverance's natural-color images (`MARS_TINT`), with 30 % of the
@@ -72,16 +91,19 @@ PDS file gives it. The tube lies under the rover, within about a meter of the po
 
 ### Code
 
-- `src/map/layers.ts`: the layer catalog. **To add a layer, add an entry to `LAYERS`**
-  with its title, group, source and a `create()` that returns an ArcGIS layer.
+- `src/map/sites.ts`: the landing areas (`SITES`): extent, landing point, data files and sources.
+  **To add a site**, add an entry there and build its data like `scripts/build_gale_layers.py` does.
+- `src/map/layers.ts`: the layer catalog. **To add a layer, add an entry to `layersFor()`**
+  with its title, group, source and a `create()` that returns an ArcGIS layer. Ids are the same at
+  every site (`elevation`, `traverse`, ...).
 - `src/map/layerStack.ts`: the Side view stack. What each layer draws on its slab is in `SLABS`;
   spacing and texture size are the constants at the top.
 - `src/map/geojson.ts`: `marsGeoJSONLayer()` for GeoJSON in Mars lon/lat. Use it instead of
   ArcGIS's `GeoJSONLayer`, which assumes Earth (WGS84) coordinates.
-- `src/map/JezeroElevationLayer.ts`: the 3D ground (global DEM + Jezero 20 m DTM, feathered
+- `src/map/SiteElevationLayer.ts`: the 3D ground (global DEM + the site's 20 m DTM, feathered
   over ~600 m at the DTM's edge).
 - `src/map/UpsampledTileLayer.ts`, `src/map/ModelTextureLayer.ts`: custom tile layers.
-- `src/map/mars.ts`: the Mars coordinate system, tiling scheme and known extents.
+- `src/map/mars.ts`: the Mars coordinate system and tiling scheme.
 - In development, `window.solmap` holds the map, view and layers for the browser console.
 
 ### Rebuilding the Jezero data
@@ -117,6 +139,25 @@ are left out.
 
 `build_jezero_layers.py` checks the DTM against the published elevation of the Perseverance landing site
 (−2569.9 m; the DTM gives −2567.2 m) and stops if they differ by more than 15 m.
+
+### Rebuilding the Gale data
+
+`public/data/gale/` is built by `scripts/build_gale_layers.py` (same venv; it reuses helpers from the
+Jezero script):
+
+```sh
+.venv/bin/python scripts/build_gale_layers.py            # or --only rasters | rover | environment
+```
+
+- `gale_dem_20m.tif`, `gale_slope_20m.tif`: the USGS Gale DEM is 3.6 GB, so it is read remotely from its
+  16 m overview (HTTP range requests through GDAL) and averaged to 20 m. The script checks it against the
+  rover's own elevations at the first, middle and last stop (they agree within ~1 m) and stops if any
+  differs by more than 25 m.
+- `msl_traverse.geojson`, `msl_waypoints.geojson`: the Curiosity path (MultiLineStrings split into
+  LineStrings, in driving order) and stops (sol, elevation).
+- `msl_environment.json`: RAD and REMS on one sol every 40. RAD files are ~68 MB per sol: the script reads
+  only each label (cached in `scripts/.cache/gale/`) and then the few bytes of each dose value with range
+  requests. REMS tables are fixed-width, so it reads 240 evenly spaced rows per sol the same way.
 
 ## Credits
 

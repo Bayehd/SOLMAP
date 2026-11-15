@@ -1,16 +1,17 @@
-// Home page -> launch -> fly to Jezero -> rocket lands at the landing site.
-// From the map, "Go to Earth" sends the rocket to the Earth page; "Back to Mars" flies home again
-// and the sky crane lowers the rover back at Jezero.
+// Home page: pick a landing area (Jezero Crater or Gale Crater) -> launch -> fly there -> the rover lands at
+// the start of its traverse. From the map, "Go to Earth" sends the rocket to the Earth page; "Back to Mars"
+// flies home again and the sky crane lowers the rover back at the same site.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { MapApp } from './map/MapApp';
 import { EarthApp } from './earth/EarthApp';
 import { Rocket } from './home/Rocket';
 import { Lander } from './home/Lander';
 import type { RoverControl } from './map/rover';
+import { SITES, formatLatLon, type SiteId } from './map/sites';
 import './home/home.css';
 
 // Rocket: idle (on the pad) · ignite · launch (boosters separate on the way up) · waiting (off-screen while the camera flies)
-// landing: the sky crane brings the 3D rover down onto Jezero (timed by <Lander>)
+// landing: the sky crane brings the 3D rover down onto the site (timed by <Lander>)
 // done: the rover stays on the terrain, just the map
 type Phase = 'idle' | 'ignite' | 'launch' | 'waiting' | 'landing' | 'done';
 
@@ -29,6 +30,8 @@ const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)'
 
 export function App() {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [siteId, setSiteId] = useState<SiteId>('jezero'); // the landing area picked on the home page
+  const site = SITES[siteId];
   const [mapMounted, setMapMounted] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [instant, setInstant] = useState(false); // reduced motion: straight to the map
@@ -100,7 +103,8 @@ export function App() {
     else setTrip('ignite');
   };
 
-  const launch = () => {
+  const launch = (id: SiteId) => {
+    setSiteId(id);
     setMapMounted(true);
     if (reducedMotion()) {
       setInstant(true);
@@ -139,6 +143,8 @@ export function App() {
     <>
       {world === 'mars' && mapMounted && (
         <MapApp
+          key={site.id}
+          site={site}
           onTravel={startTrip}
           canTravel={phase === 'done' && trip === 'none'}
           showRover={instant || phase === 'landing' || phase === 'done'}
@@ -160,13 +166,19 @@ export function App() {
           <main className="home-content">
             <p className="home-kicker">SOLMAP · Mars</p>
             <h1 className="home-title">Choose your landing area</h1>
-            <button className="home-site" onClick={launch} disabled={phase !== 'idle'}>
-              <span className="home-site-name">Jezero Crater</span>
-              <span className="home-site-meta">Landing area · 18.44° N, 77.45° E</span>
-              <span className="home-site-go" aria-hidden="true">
-                {phase === 'idle' ? 'Launch →' : 'Launching…'}
-              </span>
-            </button>
+            <div className="home-sites">
+              {Object.values(SITES).map((s) => (
+                <button key={s.id} className="home-site" onClick={() => launch(s.id)} disabled={phase !== 'idle'}>
+                  <span className="home-site-name">{s.name}</span>
+                  <span className="home-site-meta">
+                    {s.rover} · {formatLatLon(s.landing.lat, s.landing.lon)}
+                  </span>
+                  <span className="home-site-go" aria-hidden="true">
+                    {phase === 'idle' ? 'Launch →' : siteId === s.id ? 'Launching…' : '\u00a0'}
+                  </span>
+                </button>
+              ))}
+            </div>
           </main>
           <div className="home-pad" />
         </div>

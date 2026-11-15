@@ -25,6 +25,7 @@
 .home-kicker { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
 .home-title { margin: 0 0 28px; font-size: clamp(28px, 4.5vw, 44px); font-weight: 600; line-height: 1.1; }
 
+.home-sites { display: grid; gap: 12px; }
 .home-site {
   all: unset;
   box-sizing: border-box;

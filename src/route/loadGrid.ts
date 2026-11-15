@@ -1,13 +1,15 @@
-// Reads a window of the 20 m Jezero terrain model and the CRISM mineral raster from the layers already on the map.
+// Reads a window of the site's 20 m terrain model (and its CRISM mineral raster, where it has one) from the layers already on the map.
 import Extent from '@arcgis/core/geometry/Extent';
 import type ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
-import { JEZERO_DTM_EXTENT, marsSR, publicUrl } from '../map/mars';
+import { marsSR, publicUrl } from '../map/mars';
+import type { Site } from '../map/sites';
 import { ASSUMPTIONS } from './config';
 import { M_PER_DEG, mPerDegLon, type Grid, type LonLat, type SamplePoint } from './planner';
 
-let samplesPromise: Promise<SamplePoint[]> | null = null;
-function loadSamples(): Promise<SamplePoint[]> {
-  samplesPromise ??= fetch(publicUrl('data/jezero/m20_samples.geojson'))
+const samplesPromise = new Map<string, Promise<SamplePoint[]>>();
+function loadSamples(file: string | undefined): Promise<SamplePoint[]> {
+  if (!file) return Promise.resolve([]);
+  if (!samplesPromise.has(file)) samplesPromise.set(file, fetch(publicUrl(file))
     .then((r) => r.json())
     .then((gj) =>
       (gj.features as { properties: { number: number; name: string }; geometry: { coordinates: [number, number] } }[]).map((f) => ({
@@ -17,30 +19,28 @@ function loadSamples(): Promise<SamplePoint[]> {
         number: f.properties.number,
       })),
     )
-    .catch(() => []);
-  return samplesPromise;
+    .catch(() => []));
+  return samplesPromise.get(file)!;
 }
 
-export const insideDtm = (p: LonLat) =>
-  p.lon >= JEZERO_DTM_EXTENT.xmin && p.lon <= JEZERO_DTM_EXTENT.xmax && p.lat >= JEZERO_DTM_EXTENT.ymin && p.lat <= JEZERO_DTM_EXTENT.ymax;
-
-function windowFor(points: LonLat[]) {
+function windowFor(site: Site, points: LonLat[]) {
+  const E = site.extent;
   const lats = points.map((p) => p.lat), lons = points.map((p) => p.lon);
   const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
   const mx = ASSUMPTIONS.windowMarginM / mPerDegLon(midLat), my = ASSUMPTIONS.windowMarginM / M_PER_DEG;
   return {
-    xmin: Math.max(JEZERO_DTM_EXTENT.xmin, Math.min(...lons) - mx),
-    xmax: Math.min(JEZERO_DTM_EXTENT.xmax, Math.max(...lons) + mx),
-    ymin: Math.max(JEZERO_DTM_EXTENT.ymin, Math.min(...lats) - my),
-    ymax: Math.min(JEZERO_DTM_EXTENT.ymax, Math.max(...lats) + my),
+    xmin: Math.max(E.xmin, Math.min(...lons) - mx),
+    xmax: Math.min(E.xmax, Math.max(...lons) + mx),
+    ymin: Math.max(E.ymin, Math.min(...lats) - my),
+    ymax: Math.min(E.ymax, Math.max(...lats) + my),
   };
 }
 
 const NODATA = -32767;
 
 /** Loads elevation and minerals for the area around the points (and the base antenna). Derived rasters come from prepareGrid(). */
-export async function loadGrid(elevation: ImageryTileLayer, minerals: ImageryTileLayer, points: LonLat[]): Promise<Grid> {
-  const ext = windowFor(points);
+export async function loadGrid(site: Site, elevation: ImageryTileLayer, minerals: ImageryTileLayer | undefined, points: LonLat[]): Promise<Grid> {
+  const ext = windowFor(site, points);
   const midLat = (ext.ymin + ext.ymax) / 2;
   const wM = (ext.xmax - ext.xmin) * mPerDegLon(midLat), hM = (ext.ymax - ext.ymin) * M_PER_DEG;
   const width = Math.max(8, Math.min(ASSUMPTIONS.maxSideCells, Math.round(wM / ASSUMPTIONS.cellM)));
@@ -48,8 +48,8 @@ export async function loadGrid(elevation: ImageryTileLayer, minerals: ImageryTil
   const extent = new Extent({ ...ext, spatialReference: marsSR() });
   const [ez, mz, samples] = await Promise.all([
     elevation.fetchPixels(extent, width, height),
-    minerals.fetchPixels(extent, width, height).catch(() => null),
-    loadSamples(),
+    minerals ? minerals.fetchPixels(extent, width, height).catch(() => null) : null,
+    loadSamples(site.files.samples),
   ]);
   const band = ez?.pixelBlock?.pixels?.[0];
   if (!ez?.pixelBlock || !band) throw new Error('The terrain model returned no pixels for this area.');

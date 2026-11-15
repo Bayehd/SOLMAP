@@ -1,10 +1,11 @@
-// 3D ground: NASA MGS MOLA global elevation (463 m), with the 20 m USGS CTX DTM of the
-// Jezero landing site in its place where it has data. Both are in meters above the MOLA areoid.
+// 3D ground: NASA MGS MOLA global elevation (463 m), with the 20 m DTM of the landing site
+// (Jezero or Gale, see sites.ts) in its place where it has data. Both are in meters above the MOLA areoid.
 import type ElevationLayer from '@arcgis/core/layers/ElevationLayer';
 import BaseElevationLayer, { type BaseElevationLayerProperties } from '@arcgis/core/layers/BaseElevationLayer';
 import Extent from '@arcgis/core/geometry/Extent';
 import ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
-import { JEZERO_DTM_EXTENT, marsSR, marsTileInfo, publicUrl, tileExtent } from './mars';
+import { marsSR, marsTileInfo, publicUrl, tileExtent } from './mars';
+import type { Site } from './sites';
 
 /** Deepest level the MOLA service has (0.0055°/sample ≈ 326 m, finer than MOLA's 463 m). Deeper tiles upsample it. */
 const GLOBAL_MAX_LEVEL = 6;
@@ -39,14 +40,14 @@ function sampleTile(t: Tile, e: ReturnType<typeof tileExtent>, x: number, y: num
   );
 }
 
-export function createJezeroElevationLayer(global: ElevationLayer, props: BaseElevationLayerProperties = {}): BaseElevationLayer {
-  const dtm = new ImageryTileLayer({ url: publicUrl('data/jezero/ctx_dtm_20m.tif') });
-  const J = JEZERO_DTM_EXTENT;
+export function createSiteElevationLayer(site: Site, global: ElevationLayer, props: BaseElevationLayerProperties = {}): BaseElevationLayer {
+  const dtm = new ImageryTileLayer({ url: publicUrl(site.files.dtm) });
+  const J = site.extent;
 
   const Layer = BaseElevationLayer.createSubclass({
     load(this: BaseElevationLayer) {
       // The DTM is optional: without it the ground is the global DEM.
-      this.addResolvingPromise(Promise.all([global.load(), dtm.load().catch((err: unknown) => console.warn('Jezero DTM not loaded', err))]));
+      this.addResolvingPromise(Promise.all([global.load(), dtm.load().catch((err: unknown) => console.warn(`${site.short} DTM not loaded`, err))]));
     },
 
     async fetchTile(level: number, row: number, col: number, options?: { signal?: AbortSignal }) {
@@ -101,7 +102,7 @@ export function createJezeroElevationLayer(global: ElevationLayer, props: BaseEl
             }
           }
         } catch (err) {
-          if ((err as Error)?.name !== 'AbortError') console.warn('Jezero DTM tile failed', err);
+          if ((err as Error)?.name !== 'AbortError') console.warn(`${site.short} DTM tile failed`, err);
         }
       }
       return { values, width: W, height: H, noDataValue, maxZError: 0.5 };

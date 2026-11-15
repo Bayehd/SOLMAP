@@ -1,7 +1,8 @@
-// The Perseverance 3D model (public/models/perseverance.glb) in the 3D view.
+// The rover's 3D model (public/models/perseverance.glb) in the 3D view, at either landing site.
 // Model: "Perseverance Mars rover" by Cybertron B-127, CC BY 4.0 (see ROVER_CREDIT and public/models/perseverance.LICENSE.txt).
+// At Gale it stands in for Curiosity, whose chassis Perseverance's design was based on (same size, same six wheels).
 // attachRover() returns a RoverControl: the landing animation uses it to fly the model down onto the route's
-// origin, and the map uses it to drive the rover along the whole traverse (public/data/jezero/m20_traverse.geojson).
+// origin, and the map uses it to drive the rover along the site's whole traverse (site.files.traverse).
 import Graphic from '@arcgis/core/Graphic';
 import Point from '@arcgis/core/geometry/Point';
 import GraphicsLayer from '@arcgis/core/layers/GraphicsLayer';
@@ -9,17 +10,17 @@ import PointSymbol3D from '@arcgis/core/symbols/PointSymbol3D';
 import ObjectSymbol3DLayer from '@arcgis/core/symbols/ObjectSymbol3DLayer';
 import { watch } from '@arcgis/core/core/reactiveUtils';
 import type SceneView from '@arcgis/core/views/SceneView';
-import { LANDING_SITE, METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
+import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
+import type { Site } from './sites';
 
 export const ROVER_CREDIT = {
   text: '“Perseverance Mars rover” by Cybertron B-127, CC BY 4.0',
   url: 'https://sketchfab.com/3d-models/perseverance-mars-rover-53034dff0df04f698f2a5d532366adc4',
 };
 
-const REAL_HEIGHT_M = 2.2; // Perseverance is about 2.2 m tall
+const REAL_HEIGHT_M = 2.2; // Perseverance and Curiosity are both about 2.2 m tall
 export const ROVER_WIDTH_PER_HEIGHT = 2.7 / 2.2; // model footprint width / height
 const SCREEN_HEIGHT_PX = 40; // how tall it is drawn while the camera is too far away to see it at real size
-const SITE_ELEVATION_M = -2570; // ground height at the landing site, until the terrain query answers
 const PARKED_HEADING = 120; // degrees, so the parked model is seen from its side in the default view
 const MODEL_HEADING_OFFSET = 180; // added to the direction of travel so the model drives arm (front) first
 const DRIVE_SECONDS = 90; // time to drive the whole route
@@ -50,11 +51,11 @@ const roverSymbol = (height: number, heading: number) =>
 
 const point = (lon: number, lat: number, z: number) => new Point({ x: lon, y: lat, z, spatialReference: marsSR() });
 
-export function createRoverLayer() {
+export function createRoverLayer(site: Site) {
   // Heights relative to the terrain: z = 0 keeps the rover on the ground anywhere on the route,
   // z > 0 lifts it for the landing.
-  const layer = new GraphicsLayer({ id: 'rover', title: 'Perseverance (3D model)', visible: false, elevationInfo: { mode: 'relative-to-ground' } });
-  layer.add(new Graphic({ geometry: point(LANDING_SITE.lon, LANDING_SITE.lat, 0), symbol: roverSymbol(REAL_HEIGHT_M, PARKED_HEADING) }));
+  const layer = new GraphicsLayer({ id: 'rover', title: `${site.rover} (3D model)`, visible: false, elevationInfo: { mode: 'relative-to-ground' } });
+  layer.add(new Graphic({ geometry: point(site.landing.lon, site.landing.lat, 0), symbol: roverSymbol(REAL_HEIGHT_M, PARKED_HEADING) }));
   return layer;
 }
 
@@ -74,13 +75,13 @@ type Route = { lon: Float64Array; lat: Float64Array; dist: Float64Array; total: 
 
 const metersX = (lat: number) => METERS_PER_DEGREE * Math.cos((lat * Math.PI) / 180);
 
-async function loadRoute(): Promise<Route> {
-  const geojson = await (await fetch(publicUrl('data/jezero/m20_traverse.geojson'))).json();
+async function loadRoute(file: string): Promise<Route> {
+  const geojson = await (await fetch(publicUrl(file))).json();
   const pts: number[][] = [];
   const gap = (a: number[], b: number[]) => Math.hypot((a[0] - b[0]) * metersX(a[1]), (a[1] - b[1]) * METERS_PER_DEGREE);
   // Drives are in order. A few are stored ending where the rover already is, with the next drive starting
   // there too: out-and-back excursions, driven out (reversed) and back. The remaining few gaps in the data
-  // (~0.5 km of 47) are bridged with straight lines.
+  // (~0.5 km of 47 at Jezero) are bridged with straight lines.
   for (const f of geojson.features as { geometry: { coordinates: number[][] } }[]) {
     let coords = f.geometry.coordinates;
     const here = pts[pts.length - 1];
@@ -134,16 +135,18 @@ const angleDiff = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180
 export function attachRover(
   view: SceneView,
   layer: GraphicsLayer,
+  site: Site,
   onDrive?: (s: DriveState) => void,
 ): RoverControl & {
   toggleDrive(): void;
   remove(): void;
 } {
   const graphic = layer.graphics.getItemAt(0)!;
-  let groundZ = SITE_ELEVATION_M; // terrain height at the landing site, for screen projection during landing
+  let groundZ = site.landingElevationM; // terrain height at the landing site, for screen projection during landing
   let altitude = 0;
-  let lon = LANDING_SITE.lon;
-  let lat = LANDING_SITE.lat;
+  const { lon: siteLon, lat: siteLat } = site.landing;
+  let lon = siteLon;
+  let lat = siteLat;
   let height = REAL_HEIGHT_M;
   let heading = PARKED_HEADING;
   let removed = false;
@@ -152,7 +155,7 @@ export function attachRover(
   const resymbol = () => (graphic.symbol = roverSymbol(height, heading));
 
   view.map?.ground
-    .queryElevation(point(LANDING_SITE.lon, LANDING_SITE.lat, 0))
+    .queryElevation(point(siteLon, siteLat, 0))
     .then((r) => {
       const z = (r.geometry as Point).z;
       if (!removed && z !== undefined && z !== null) groundZ = z;
@@ -185,7 +188,7 @@ export function attachRover(
     lastReport = now;
     onDrive?.({ ready: !!route, playing, km: s / 1000, totalKm: (route?.total ?? 0) / 1000 });
   };
-  loadRoute()
+  loadRoute(site.files.traverse)
     .then((r) => {
       if (removed) return;
       route = r;
@@ -223,10 +226,10 @@ export function attachRover(
       place();
     },
     toScreen(m) {
-      const p = view.toScreen(point(LANDING_SITE.lon, LANDING_SITE.lat, groundZ + m));
+      const p = view.toScreen(point(siteLon, siteLat, groundZ + m));
       return p ? { x: p.x, y: p.y } : null;
     },
-    metersPerPx: () => measureMetersPerPx(view, LANDING_SITE.lon, LANDING_SITE.lat, groundZ),
+    metersPerPx: () => measureMetersPerPx(view, siteLon, siteLat, groundZ),
     position: () => ({ lon, lat }),
     toggleDrive() {
       if (!route) return;
