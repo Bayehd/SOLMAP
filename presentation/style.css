@@ -157,3 +157,28 @@ table.cmp tr:last-child th, table.cmp tr:last-child td { border-bottom:0; }
   text-shadow:0 2px 0 #e8d6c4,0 4px 0 #d9bfa6,0 6px 0 #c9a688,0 8px 0 #b48a69,0 10px 0 #9a6f4f,0 30px 30px rgba(60,20,0,.55); }
 .reveal section.present .ground-text h2 { animation:settle 1.6s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes settle { from{opacity:0;transform:rotateX(0deg) translateY(-300px) scale(.8)} 70%{opacity:1} to{opacity:1;transform:rotateX(58deg)} }
+
+/* objective 1: stacked map layers */
+.plates { width:1040px; height:1080px; }
+.plate { position:absolute; left:0; width:1040px; height:200px; filter:drop-shadow(0 0 1.5px #2a1406) drop-shadow(0 18px 18px rgba(60,20,0,.45)); }
+.plate .face { position:absolute; inset:0; clip-path:polygon(0 0,72% 0,100% 100%,28% 100%); outline:none; }
+.plate .face::after { content:""; position:absolute; inset:0; clip-path:inherit;
+  background:linear-gradient(#222,#222) top/100% 3px no-repeat; }
+.p1 { top:180px; } .p2 { top:330px; } .p3 { top:480px; } .p4 { top:630px; } .p5 { top:780px; }
+.p1 .face { background:rgba(255,255,255,.82); }
+.p1 i { position:absolute; font:700 22px 'Rajdhani'; color:#333; font-style:normal; }
+.p1 i::before { content:"● "; color:#b5541b; }
+.p2 .face { background:url(assets/photo_mars.jpg) 50% 45%/1500px auto; filter:grayscale(1) contrast(1.6) brightness(1.5); opacity:.85; }
+.p3 .face { background:url(assets/photo_mars.jpg) 50% 45%/1500px auto; opacity:.6; }
+.p4 .face { background:radial-gradient(circle at 35% 50%,#ffe14d,transparent 22%),radial-gradient(circle at 60% 40%,#e53b2c,transparent 18%),radial-gradient(circle at 75% 75%,#ffe14d,transparent 20%),linear-gradient(90deg,#1f8f8a,#3aa36a 45%,#d9c76a 75%,#c97b3a); }
+.p5 .face { background:linear-gradient(135deg,#f6e9d8,#e9cfae); }
+.reveal section .plate { opacity:0; }
+.reveal section.present .plate { animation:plateIn 1.2s cubic-bezier(.2,.8,.2,1) both; }
+.reveal section.present .p5 { animation-delay:.1s } .reveal section.present .p4 { animation-delay:.3s }
+.reveal section.present .p3 { animation-delay:.5s } .reveal section.present .p2 { animation-delay:.7s } .reveal section.present .p1 { animation-delay:.9s }
+@keyframes plateIn { from{opacity:0;transform:translateY(-260px)} to{opacity:1;transform:none} }
+.plate-labels { width:640px; }
+.pl { position:absolute; left:0; }
+.pl h3 { font-size:56px; margin:0; } .pl p { font-size:30px; margin:0; }
+.bracket { width:40px; border:3px solid #fff; border-right:0; }
+.bracket span { position:absolute; left:-58px; top:50%; transform:translateY(-50%) rotate(-90deg); white-space:nowrap; font:700 30px 'Rajdhani'; letter-spacing:2px; }
