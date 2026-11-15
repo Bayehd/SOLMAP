@@ -135,11 +135,8 @@ export function attachRover(
   view: SceneView,
   layer: GraphicsLayer,
   onDrive?: (s: DriveState) => void,
-  /** Called every time the rover moves along the route, with the step in degrees (for a following camera). */
-  onMove?: (dLon: number, dLat: number) => void,
 ): RoverControl & {
   toggleDrive(): void;
-  resetDrive(): void;
   remove(): void;
 } {
   const graphic = layer.graphics.getItemAt(0)!;
@@ -199,10 +196,8 @@ export function attachRover(
   const moveTo = (dist: number) => {
     if (!route) return;
     s = Math.min(Math.max(dist, 0), route.total);
-    const from = { lon, lat };
     ({ lon, lat } = sample(route, s));
     place();
-    onMove?.(lon - from.lon, lat - from.lat);
     const h = (headingAt(route, s) + MODEL_HEADING_OFFSET) % 360;
     if (angleDiff(h, heading) > 3) {
       heading = h;
@@ -244,14 +239,6 @@ export function attachRover(
         last = performance.now();
         raf = requestAnimationFrame(frame);
       }
-      report(true);
-    },
-    resetDrive() {
-      playing = false;
-      cancelAnimationFrame(raf);
-      moveTo(0);
-      heading = PARKED_HEADING;
-      resymbol();
       report(true);
     },
     remove() {
