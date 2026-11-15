@@ -16,7 +16,7 @@
         vx: (Math.random() - .5) * 1.5, vy: -1 - Math.random() * 2,
         r: (.12 + Math.random() * .2) * Math.max(w, h), life: 1, decay: .004 + Math.random() * .004 });
     }
-    if (fog.fading) fog.cover = Math.max(0, fog.cover - dt * .8); // clears in ~1.2s
+    if (fog.fading) fog.cover = Math.max(0, fog.cover - dt * 1.4); // clears in ~1.2s
     ctx.clearRect(0, 0, w, h);
     // dense smoke rises from the ground: bottom is covered first, then the whole page
     const top = h * (1 - Math.min(1, fog.cover * 1.25));

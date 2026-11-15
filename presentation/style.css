@@ -199,3 +199,22 @@ table.cmp tr:last-child th, table.cmp tr:last-child td { border-bottom:0; }
 @keyframes kbTube { from{transform:scale(1)} to{transform:scale(1.18); transform-origin:80% 65%} }
 .kb-tube { transform-origin:80% 65%; }
 @media (prefers-reduced-motion: reduce) { .reveal section.present .full { animation:none; } }
+
+/* launch slide: real rocket over the painted pad */
+.rocket2 { z-index:3; }
+.rocket2 .flame { position:absolute; left:50%; top:330px; width:90px; height:260px; transform:translateX(-50%); border-radius:50% 50% 45% 45%;
+  background:radial-gradient(ellipse at 50% 15%,#fffbe6 0%,#ffd36b 25%,#ff9a3c 55%,rgba(255,120,40,0) 75%); filter:blur(3px);
+  animation:flicker .12s infinite alternate; }
+@keyframes flicker { from{transform:translateX(-50%) scaleY(1)} to{transform:translateX(-50%) scaleY(1.12)} }
+
+/* cover */
+.cover-sky { left:0; top:0; width:1920px; height:1080px; background:linear-gradient(#c48f86 0%,#f2a979 35%,#fcd48a 65%,#fdd98c 100%); }
+.cover-hills { left:0; top:0; width:1920px; height:1080px; }
+.cover-hills .h1 { fill:#e08a5e; } .cover-hills .h2 { fill:#d4693f; } .cover-hills .h3 { fill:#c0532e; }
+.cover-title { text-align:center; color:#2b2724; font-family:'Orbitron','Rajdhani',sans-serif; }
+.cover-title .pre { font-size:58px; letter-spacing:12px; font-weight:400; }
+.cover-title .main { font-size:120px; letter-spacing:44px; font-weight:500; margin-left:44px; }
+.reveal section.present .cover-title .pre { animation:inDown 1.2s ease-out both; }
+.reveal section.present .cover-title .main { animation:spread 1.8s cubic-bezier(.2,.8,.2,1) .3s both; }
+@keyframes spread { from{opacity:0;letter-spacing:0} to{opacity:1;letter-spacing:44px} }
+.reveal section.present .cover-hills .h3 { animation:inUp 1.4s ease-out both; }
