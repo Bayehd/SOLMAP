@@ -18,6 +18,7 @@ import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
 import { createRegionTextureLayer } from './RegionTextureLayer';
 import { createTrekTileLayer } from './TrekTileLayer';
 import { SPOT_COLOR } from './mineralSpots';
+import { LIMITS } from '../route/config';
 
 type LegendItem = { color: string; label: string };
 /** A continuous color range, low to high: each stop's color at its value (stops are placed by value). */
@@ -46,14 +47,14 @@ export type LayerDef = {
 const ASTRO = 'https://astro.arcgis.com/arcgis/rest/services/OnMars';
 
 /**
- * Walking-slope classes. ASSUMPTION, not a NASA standard: placeholders until the team picks
- * EVA limits. Slopes are from the 20 m DTM, so steps and boulders smaller than 20 m don't show.
+ * Walking-slope classes (the Hazards layer), from LIMITS in route/config.ts, as reviewed by the team. ASSUMPTION,
+ * not a NASA standard. Slopes are from the 20 m DTM, so steps and boulders smaller than 20 m don't show.
  */
 export const SLOPE_CLASSES = [
   // `painted: false` leaves the class transparent on the map so the imagery shows through.
-  { max: 15, label: 'Walkable (< 15°)', color: [76, 175, 80], painted: false },
-  { max: 25, label: 'Caution (15–25°)', color: [255, 193, 7], painted: true },
-  { max: 90, label: 'No-go (≥ 25°)', color: [229, 57, 53], painted: true },
+  { max: LIMITS.cautionDeg, label: `Walkable (< ${LIMITS.cautionDeg}°)`, color: [76, 175, 80], painted: false },
+  { max: LIMITS.nogoDeg, label: `Caution (${LIMITS.cautionDeg}–${LIMITS.nogoDeg}°)`, color: [255, 193, 7], painted: true },
+  { max: 90, label: `No-go (≥ ${LIMITS.nogoDeg}°)`, color: [229, 57, 53], painted: true },
 ] as const;
 
 /**

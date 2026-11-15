@@ -86,8 +86,9 @@ points are solar storms: the stop at sol 4190 (20 May 2024) shows the large sola
 tinted with a butterscotch tan like Perseverance's natural-color images (`MARS_TINT` in
 `src/map/MarsColorCtxLayer.ts`).
 
-**Assumption:** the slope classes (walkable < 15°, caution 15–25°, no-go ≥ 25°) are
-placeholders, not a NASA standard. Change them in `SLOPE_CLASSES` in `src/map/layers.ts`.
+**Assumption:** the hazard (slope) classes (walkable < 16°, caution 16–20°, no-go ≥ 20°), as reviewed by the
+team, are not a NASA standard. The Hazards layer and the route planner share them: change them in `LIMITS` in
+`src/route/config.ts`.
 A 20 m grid also hides steps and boulders smaller than 20 m.
 
 **Assumption:** the mineral map uses fixed thresholds on CRISM summary parameters
