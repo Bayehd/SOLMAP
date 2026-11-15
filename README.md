@@ -46,8 +46,7 @@ npm run build
 
 | Layer | Source | Resolution | Kind |
 |---|---|---|---|
-| Mars color (Viking MDIM 2.1 mosaic) | USGS / NASA Ames, hosted by Esri | 232 m/px | data |
-| Satellite photos (CTX image mosaic) | Murray Lab, Caltech (MRO CTX), colored with the Viking MDIM 2.1 mosaic, hosted by Esri | ~5 m/px | derived |
+| Satellite photos (CTX image mosaic) | Murray Lab, Caltech (NASA MRO CTX), hosted by Esri, tinted in Mars color ([about](https://murray-lab.caltech.edu/CTX/)) | ~5 m/px | derived |
 | Painted Mars (SOLMAP model texture) | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
 | Realistic crater (Jezero crater model texture) | `public/models/jezero-crater-texture.jpg`, the texture of "Jezero Crater (Mars)" by Gaia (artist model, not NASA data), placed by matching the model's heights to the USGS DTM (RMS 17 m), shown over the 20 m DTM area only; from close up, CTX detail is blended in | ~84 m/px | artistic |
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
@@ -83,9 +82,8 @@ solar maximum, about 285 near the 2019–2020 minimum and about 165 near the 202
 points are solar storms: the stop at sol 4190 (20 May 2024) shows the large solar particle event of that week.
 
 **Assumption:** CTX is grayscale. To show it in Mars color, each pixel keeps the CTX brightness and is
-tinted with a butterscotch tan like Perseverance's natural-color images (`MARS_TINT`), with 30 % of the
-Viking MDIM 2.1 hue at that place mixed in (`MDIM_SHARE`, both in `src/map/MarsColorCtxLayer.ts`). The
-Viking colors are enhanced (dark ground turns blue), so they are not used on their own.
+tinted with a butterscotch tan like Perseverance's natural-color images (`MARS_TINT` in
+`src/map/MarsColorCtxLayer.ts`).
 
 **Assumption:** the slope classes (walkable < 15°, caution 15–25°, no-go ≥ 25°) are
 placeholders, not a NASA standard. Change them in `SLOPE_CLASSES` in `src/map/layers.ts`.

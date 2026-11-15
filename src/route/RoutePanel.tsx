@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { publicUrl } from '../map/mars';
 import type { Site } from '../map/sites';
 import { ASSUMPTIONS, LIMITS, WEIGHT_RANGES, type Weights } from './config';
+import { OXYGEN, oxygenUse } from './oxygen';
 import type { RoutePlanner } from './useRoutePlanner';
 import type { RouteResult } from './planner';
 
@@ -135,6 +136,8 @@ function Stats({ safest, direct, env }: { safest: RouteResult | null; direct: Ro
     [`On ${LIMITS.cautionDeg}°+ slopes`, (r) => fmtKm(r.stats.cautionM)],
     [`On ${LIMITS.nogoDeg}°+ or no data`, (r) => fmtKm(r.stats.nogoM)],
     ['Radio line of sight', (r) => (r.stats.losPct === null ? 'unknown' : `${Math.round(r.stats.losPct)}%`)],
+    ['Oxygen used (of 1 tank)', (r) => `${Math.round(oxygenUse(r.stats).pct)}%`],
+    ['Tanks needed', (r) => String(oxygenUse(r.stats).tanks)],
     ['Radiation index (modelled)', (r) => (r.stats.radiation === null ? 'unknown' : r.stats.radiation.toFixed(2))],
   ];
   // Dose on the walk at the rate RAD measured (median sol; the range is RAD's lowest and highest sampled sols).
@@ -232,6 +235,7 @@ export function RoutePanel({ planner, site, open }: { planner: RoutePlanner; sit
               <li>Terrain: 20 m {site.id === 'gale' ? 'HiRISE + CTX DEM (USGS, averaged from 1 m)' : 'CTX DTM'}. Boulders, steps and cliffs smaller than 20 m are invisible, so this is planning guidance, not a safe-to-walk guarantee.</li>
               <li>Slope bands ({LIMITS.cautionDeg}° caution, {LIMITS.nogoDeg}° no-go) are our assumptions, not NASA standards. Slope adds cost above {ASSUMPTIONS.comfortSlopeDeg}°.</li>
               <li>Effort: Minetti et al. 2002 walking-energy curve measured on Earth, applied to Mars terrain. No suit, load or gravity model.</li>
+              <li>Oxygen: O₂ used (%) = distance (m) × {OXYGEN.perMetre} + climb (m) × {OXYGEN.perClimbMetre} + time (min) × {OXYGEN.perMinute}, as a share of one tank. One tank lasts {OXYGEN.tankHours} h; tanks needed is rounded up and never less than walking time ÷ {OXYGEN.tankHours} h. These coefficients are our assumption, not NASA suit data, and there is no reserve margin.</li>
               <li>Radio: straight-line geometry to a hypothetical {ASSUMPTIONS.baseAntennaM} m antenna at the landing site (walker antenna {ASSUMPTIONS.walkerAntennaM} m), with planetary curvature. No link budget, no orbiter pass schedule (see NASA Mars Relay Network).</li>
               {env ? (
                 <li>

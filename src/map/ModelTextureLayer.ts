@@ -6,7 +6,7 @@ import { marsSR, marsTileInfo, tileExtent } from './mars';
 
 /**
  * The texture is stored south-up (row 0 is the south pole), with its left edge at 180°W.
- * Flip this if a different texture appears upside down against the MDIM basemap.
+ * Flip this if a different texture appears upside down against the CTX mosaic.
  */
 const TEXTURE_SOUTH_UP = true;
 
