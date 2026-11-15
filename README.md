@@ -21,7 +21,7 @@ An ArcGIS Maps SDK for JavaScript map of Mars with real data layers, shown on a 
 page has two landing areas: **Jezero Crater** (Perseverance) and **Gale Crater** (Curiosity). Each opens
 the same app with the layers that site has data for, and three views of it: **3D** (tilted), **Side**
 and **Top** (straight down). Everything is in GCS
-Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point.
+Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point. The small ⓘ next to each layer name opens its description and a link to the page where its data is published.
 
 In the **Side** view, the site's terrain area (the 20 m DTM extent: ~30 km square at Jezero, 33 × 57 km
 at Gale) is lifted off the ground and pulled apart into one slab per checked data layer: the rover traverse at the bottom, then slope, minerals
@@ -48,6 +48,7 @@ npm run build
 |---|---|---|---|
 | Satellite photos (CTX image mosaic) | Murray Lab, Caltech (NASA MRO CTX), hosted by Esri, tinted in Mars color ([about](https://murray-lab.caltech.edu/CTX/)) | ~5 m/px | derived |
 | Painted Mars (SOLMAP model texture) | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
+| Daytime / Nighttime heat (THEMIS) | NASA Mars Odyssey THEMIS IR day and night controlled mosaics (ASU, 2018), tiles from NASA Mars Trek ([about](https://trek.nasa.gov/mars/jpl/config/textRelease.html)); off by default | 100 m/px, to ±65° | data |
 | Realistic crater (Jezero crater model texture) | `public/models/jezero-crater-texture.jpg`, the texture of "Jezero Crater (Mars)" by Gaia (artist model, not NASA data), placed by matching the model's heights to the USGS DTM (RMS 17 m), shown over the 20 m DTM area only; from close up, CTX detail is blended in | ~84 m/px | artistic |
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
@@ -63,6 +64,7 @@ npm run build
 | Gale radiation (route planner) | NASA PDS PPI Node, MSL RAD RDR: total dose per observation, B (silicon) and E (tissue-equivalent) detectors | 1 sol every 40, sols 41–4841 | data |
 | Curiosity radiation dose (map layer, off by default) | NASA PDS PPI Node, MSL RAD RDR, placed with the MSL MMGIS rover positions | every sol, per rover stop: 1,317 stops, sols 3–4843 | data |
 | Gale weather (route planner) | NASA PDS Atmospheres Node, MSL REMS calibrated ENV tables: air (boom 1) and ground temperature, UV, pressure | 1 sol every 40, 240 rows per sol | data |
+| Jezero weather (route planner) | NASA PDS Atmospheres Node, Mars 2020 MEDA: air (ATS, 3 mast-boom sensors) and ground (TIRS) temperature, pressure (PS), wind (WS) | 1 sol every 40, sols 20–1820; wind on 7 sols | data |
 
 At Gale the rover is the same 3D model (Perseverance), standing in for Curiosity: Perseverance was built on
 Curiosity's design, with the same size and six wheels. Gale has no mineral, sample or depot layer yet.
@@ -166,6 +168,11 @@ evens out offsets between overlapping observations, masks bad scan lines, applie
 median filter, and writes `crism_minerals_20m.tif`: a UInt8 class raster (0 = none,
 1–5 = the classes above) on the DTM grid. Three 2011 observations with along-track striping
 are left out.
+
+The weather in the route planner (`m20_weather.json`) is built by `scripts/build_jezero_weather.py` from the MEDA archive at
+the PDS Atmospheres Node. It reads one sol every 40 and only 240 short byte ranges of each file (cached in
+`scripts/.cache/meda_weather/`); a sol's low and high are its 2nd and 98th percentile, as for REMS at Gale. MEDA's wind
+sensor was damaged early in the mission, so only a few sols have wind.
 
 `build_jezero_layers.py` checks the DTM against the published elevation of the Perseverance landing site
 (−2569.9 m; the DTM gives −2567.2 m) and stops if they differ by more than 15 m.

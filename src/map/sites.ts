@@ -30,6 +30,7 @@ export type Site = {
     depot?: string;
     environment?: string; // measured radiation (RAD) and weather (REMS), see scripts/build_gale_layers.py
     radiation?: string; // measured RAD dose at each rover stop, see scripts/build_gale_rad.py
+    weather?: string; // weather measured by MEDA, see scripts/build_jezero_weather.py
   };
   /** An artist's color texture of the area, placed on the 3D ground (not NASA data). */
   texture?: { file: string; box: Box; title: string; credit: { text: string; url: string } };
@@ -38,7 +39,7 @@ export type Site = {
   /** Elevation colors, low to high (m). */
   elevationStops: number[];
   dtmSource: { name: string; url: string };
-  roverSource: { traverse: string; until: string };
+  roverSource: { page: string; until: string }; // page: where the rover's position data is shown and explained
 };
 
 /** Same colors for every site, spread over each site's own elevation range. */
@@ -69,6 +70,7 @@ export const SITES: Record<SiteId, Site> = {
       traverse: 'data/jezero/m20_traverse.geojson',
       samples: 'data/jezero/m20_samples.geojson',
       sampleBoard: 'data/jezero/sample_board.json',
+      weather: 'data/jezero/m20_weather.json',
       depot: 'data/jezero/m20_depot.geojson',
     },
     // "Jezero Crater (Mars)" by Gaia, CC BY 4.0: its texture, georeferenced by matching the model's heights to the
@@ -84,9 +86,9 @@ export const SITES: Record<SiteId, Site> = {
     },
     immersiveLayers: ['ctx-mosaic', 'crater-texture'],
     elevationStops: [-2711, -2400, -2100, -1800, -1516],
-    dtmSource: { name: 'USGS Astrogeology, Mars 2020 TRN CTX DTM (Fergason et al. 2020)', url: 'https://planetarymaps.usgs.gov/mosaic/mars2020_trn/CTX/' },
+    dtmSource: { name: 'USGS Astrogeology, Mars 2020 TRN CTX DTM (Fergason et al. 2020)', url: 'https://astrogeology.usgs.gov/search/map/mars_2020_terrain_relative_navigation_ctx_dtm_mosaic' },
     roverSource: {
-      traverse: 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_traverse.json',
+      page: 'https://science.nasa.gov/mission/mars-2020-perseverance/location-map/',
       until: 'drive by drive, to sol 2022',
     },
   },
@@ -114,7 +116,7 @@ export const SITES: Record<SiteId, Site> = {
       url: 'https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m',
     },
     roverSource: {
-      traverse: 'https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_traverse.json',
+      page: 'https://science.nasa.gov/mission/msl-curiosity/location-map/',
       until: 'drive by drive, to sol 5073',
     },
   },

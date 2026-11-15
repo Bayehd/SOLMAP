@@ -1,5 +1,6 @@
 // Safest-route panel: pick two points on the map, see the route, its numbers and the assumptions behind it.
 // At Gale it also shows what Curiosity measured there (RAD radiation, REMS weather), and the walk's dose at the RAD rate.
+// At Jezero it shows the weather Perseverance measured (MEDA).
 import { useEffect, useState } from 'react';
 import { publicUrl } from '../map/mars';
 import type { Site } from '../map/sites';
@@ -46,6 +47,69 @@ function useEnvironment(site: Site) {
     };
   }, [site]);
   return env;
+}
+
+/** m20_weather.json (scripts/build_jezero_weather.py): the weather Perseverance's MEDA measured at Jezero. */
+type Stat = Range & { sols: number };
+export type Weather = {
+  summary: {
+    weather: {
+      sols: number; firstSol: number; lastSol: number;
+      airMinC: Stat; airMaxC: Stat; groundMinC: Stat; groundMaxC: Stat; pressurePa: Stat; windMs: Stat; windMaxMs: Stat;
+    };
+  };
+};
+
+function useWeather(site: Site) {
+  const [weather, setWeather] = useState<Weather | null>(null);
+  useEffect(() => {
+    setWeather(null);
+    if (!site.files.weather) return;
+    let live = true;
+    fetch(publicUrl(site.files.weather))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((w) => live && setWeather(w))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [site]);
+  return weather;
+}
+
+/** What Perseverance's weather station measured at the site. */
+function MeasuredWeather({ weather, site }: { weather: Weather; site: Site }) {
+  const w = weather.summary.weather;
+  const range = (lo: Stat, hi: Stat) => `${Math.round(lo.min)} to ${Math.round(hi.max)} °C`;
+  return (
+    <details className="rp-assume" open>
+      <summary>Measured at {site.short} by {site.rover}</summary>
+      <dl className="rp-measured small">
+        <dt>Air (MEDA)</dt>
+        <dd>
+          {fmtC(w.airMinC)} at night to {fmtC(w.airMaxC)} by day (extremes {range(w.airMinC, w.airMaxC)})
+        </dd>
+        <dt>Ground (MEDA)</dt>
+        <dd>
+          {fmtC(w.groundMinC)} to {fmtC(w.groundMaxC)} (extremes {range(w.groundMinC, w.groundMaxC)})
+        </dd>
+        <dt>Pressure (MEDA)</dt>
+        <dd>{Math.round(w.pressurePa.median)} Pa ({Math.round(w.pressurePa.min)}–{Math.round(w.pressurePa.max)} with the seasons; Earth: 101,325 Pa)</dd>
+        <dt>Wind (MEDA)</dt>
+        <dd>
+          {w.windMs.median.toFixed(1)} m/s typical, gusts to {w.windMaxMs.median.toFixed(0)} m/s on a usual sol ({w.windMaxMs.max.toFixed(0)} m/s at most;
+          only {w.windMs.sols} sols, the wind sensor was damaged early in the mission)
+        </dd>
+      </dl>
+      <p className="muted small">
+        Medians over {w.sols} sols ({w.firstSol}–{w.lastSol}), one every 40 sols. Daily lows and highs per sol; extremes are the coldest and warmest
+        of those sols.{' '}
+        <a className="link" href="https://pds-atmospheres.nmsu.edu/PDS/data/PDS4/Mars2020/mars2020_meda/" target="_blank" rel="noreferrer">
+          MEDA data (NASA PDS)
+        </a>
+      </p>
+    </details>
+  );
 }
 
 const fmtDose = (uGy: number) => (uGy >= 1000 ? `${(uGy / 1000).toFixed(2)} mGy` : `${uGy.toFixed(uGy < 10 ? 1 : 0)} µGy`);
@@ -164,6 +228,7 @@ function Stats({ safest, direct, env }: { safest: RouteResult | null; direct: Ro
 /** The safest-route panel; it opens from the Route button next to ▶. */
 export function RoutePanel({ planner, site, open }: { planner: RoutePlanner; site: Site; open: boolean }) {
   const env = useEnvironment(site);
+  const weather = useWeather(site);
   const labels = weightLabels(site, !!env);
   const { picking, setPicking, start, end, weights, setWeights, plan, status, notice, clear } = planner;
   const fmtPt = (p: { lon: number; lat: number } | null) => (p ? `${p.lat.toFixed(4)}° N, ${p.lon.toFixed(4)}° E` : 'not set');
@@ -213,6 +278,7 @@ export function RoutePanel({ planner, site, open }: { planner: RoutePlanner; sit
           )}
 
           {env && <Measured env={env} site={site} />}
+          {weather && <MeasuredWeather weather={weather} site={site} />}
 
           <details className="rp-assume">
             <summary>What matters to you</summary>
