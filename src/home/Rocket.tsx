@@ -103,12 +103,24 @@ export function Rocket() {
           y === 250 && x > 26 && x < 70 ? null : <rect key={`${x}-${y}`} x={x} y={y} width="0.9" height="2.2" fill="#2a2d31" />,
         ),
       )}
-      {/* US flag */}
+      {/* NASA flag: white, with the NASA insignia (blue disc, white stars and orbit, red vector, NASA lettering) */}
       <g transform="translate(20 204)">
-        {Array.from({ length: 7 }, (_, i) => (
-          <rect key={i} y={i * 2.4} width="24" height="1.2" fill="#b22234" />
+        <rect width="24" height="15" fill="#ffffff" stroke="#c9ccd1" strokeWidth="0.3" />
+        <circle cx="12" cy="7.5" r="6" fill="#0b3d91" />
+        {[
+          [8.4, 4.6],
+          [14.6, 3.8],
+          [16.2, 9.6],
+          [9.2, 11.2],
+          [11.4, 3.4],
+        ].map(([x, y]) => (
+          <circle key={`${x}-${y}`} cx={x} cy={y} r="0.3" fill="#ffffff" />
         ))}
-        <rect width="10" height="8.4" fill="#3c3b6e" />
+        <ellipse cx="12" cy="8.2" rx="5.2" ry="1.8" fill="none" stroke="#ffffff" strokeWidth="0.35" transform="rotate(-18 12 8.2)" />
+        <path d="M5.6 11.4 C9 8.8 13 6.2 18.8 3.6 C15.2 6.8 12.6 8.4 10.6 9.4 L14.4 9 Z" fill="#fc3d21" />
+        <text x="12" y="9" textAnchor="middle" fontFamily="Helvetica, Arial, sans-serif" fontWeight="700" fontSize="3.4" fill="#ffffff">
+          NASA
+        </text>
       </g>
     </svg>
   );
