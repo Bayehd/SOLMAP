@@ -57,6 +57,7 @@ const CAMERA_VIEWS: { id: CameraView; label: string }[] = [
 // Side view: the layer stack, seen corner-on from the southwest.
 const SIDE_TILT = 68;
 const SIDE_HEADING = 35;
+const SIDE_ZOOM = 0.85; // after framing the whole stack, move in this much closer (smaller = closer)
 const LABEL_GAP_PX = 24; // between the stack and its labels
 const TOP_ZOOM = 0.65; // top view frames this fraction of the Jezero area (smaller = closer)
 
@@ -233,7 +234,7 @@ export function MapApp({
     const side = cameraView === 'side';
     for (const l of stack.layers) l.visible = side;
     // Keep the stack clear of the title card (top left), where its labels go.
-    if (viewRef.current) viewRef.current.padding = { top: side ? 160 : 0, left: side ? 120 : 0, right: 0, bottom: 0 };
+    if (viewRef.current) viewRef.current.padding = { top: side ? 280 : 0, left: side ? 120 : 0, right: 0, bottom: 0 };
     if (!side) {
       framed.current = false;
       setSlabs([]);
@@ -248,7 +249,10 @@ export function MapApp({
         const view = viewRef.current;
         if (framed.current || !view || !placed.length || followRef.current) return;
         framed.current = true;
-        view.goTo({ target: stack.stack.graphics.toArray(), heading: SIDE_HEADING, tilt: SIDE_TILT }, { duration: 1500 }).catch(() => {});
+        view
+          .goTo({ target: stack.stack.graphics.toArray(), heading: SIDE_HEADING, tilt: SIDE_TILT }, { duration: 1500 })
+          .then(() => view.goTo({ target: view.center, scale: view.scale * SIDE_ZOOM }, { duration: 500 }))
+          .catch(() => {});
       })
       .catch((err) => console.error('Could not build the layer stack', err));
     return () => {
