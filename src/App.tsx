@@ -164,6 +164,7 @@ export function App() {
         <div className="home" data-hidden={!homeVisible}>
           <div className="home-stars" style={{ boxShadow: stars.small }} />
           <div className="home-stars home-stars-big" style={{ boxShadow: stars.big }} />
+          <img className="home-badge" src={publicUrl('home/solmap-badge.webp')} alt="SOLMAP · Project Red Horizon · Planetary mapping & navigation" />
           <main className="home-content">
             <h1 className="home-title">Choose your landing area</h1>
             <div className="home-sites">

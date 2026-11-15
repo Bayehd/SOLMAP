@@ -18,6 +18,7 @@ import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
 import { createModelTextureLayer } from './ModelTextureLayer';
 import { createRegionTextureLayer } from './RegionTextureLayer';
 import { createUpsampledTileLayer } from './UpsampledTileLayer';
+import { SPOT_COLOR } from './mineralSpots';
 
 type LegendItem = { color: string; label: string };
 
@@ -232,6 +233,35 @@ export function layersFor(site: Site): LayerDef[] {
           url: publicUrl(f.minerals!),
           renderer: new RasterColormapRenderer({
             colormapInfos: MINERAL_CLASSES.map((c, i) => ({ value: i + 1, color: [...c.color], label: c.label })),
+          }),
+        }),
+    },
+    !!f.mineralSpots && {
+      id: 'mineral-spots',
+      title: 'Mineral spots',
+      group: `${site.short} minerals`,
+      visible: true,
+      kind: 'derived',
+      resolution: 'patches of 0.01 km² or more, within 1.5 km of the route',
+      description:
+        'The main patches of each mineral in the CRISM mineral map near the rover\'s route, a few per mineral. Click a point for what the mineral tells. ' +
+        'Indicative, like the mineral map (scripts/build_jezero_mineral_spots.py).',
+      source: { name: 'Derived from the CRISM mineral map', url: 'https://pds-geosciences.wustl.edu/missions/mro/crism.htm' },
+      legend: [{ color: rgb(SPOT_COLOR), label: 'Mineral spot' }],
+      create: () =>
+        marsGeoJSONLayer({
+          url: publicUrl(f.mineralSpots!),
+          geometryType: 'point',
+          fields: [
+            { name: 'mineral', type: 'string' },
+            { name: 'class', type: 'integer' },
+            { name: 'area_km2', type: 'double' },
+            { name: 'route_dist_m', type: 'integer' },
+          ],
+          outFields: ['*'],
+          elevationInfo: { mode: 'on-the-ground' },
+          renderer: new SimpleRenderer({
+            symbol: { type: 'simple-marker', style: 'circle', size: 11, color: [...SPOT_COLOR], outline: { color: 'white', width: 1.5 } },
           }),
         }),
     },

@@ -23,6 +23,7 @@ export type Site = {
     dtm: string;
     slope: string;
     minerals?: string;
+    mineralSpots?: string; // main mineral patches near the route, see scripts/build_jezero_mineral_spots.py
     traverse: string;
     samples?: string;
     sampleBoard?: string; // what each sample's info board shows, filled in by hand
@@ -64,6 +65,7 @@ export const SITES: Record<SiteId, Site> = {
       dtm: 'data/jezero/ctx_dtm_20m.tif',
       slope: 'data/jezero/ctx_slope_20m.tif',
       minerals: 'data/jezero/crism_minerals_20m.tif',
+      mineralSpots: 'data/jezero/crism_mineral_spots.geojson',
       traverse: 'data/jezero/m20_traverse.geojson',
       samples: 'data/jezero/m20_samples.geojson',
       sampleBoard: 'data/jezero/sample_board.json',

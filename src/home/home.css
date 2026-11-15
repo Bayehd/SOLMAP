@@ -15,17 +15,25 @@
 @keyframes home-twinkle { from { opacity: 0.55; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .home-stars-big { animation: none; } }
 
+/* The mission badge, top left. */
+.home-badge { position: absolute; top: max(40px, 9vh); left: max(24px, 5vw); width: clamp(100px, 14vw, 180px); height: auto; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.6)); }
+
 .home-content {
+  /* Centered in the space left of the rocket (its half-width is a sixteenth of its height). */
   position: absolute;
-  left: max(16px, 8vw);
-  top: 50%;
+  left: 16px;
+  right: calc(100vw - var(--home-rocket-x) + var(--rocket-h, 140vh) / 16 + 24px);
+  top: 57%; /* a little below the middle, clear of the badge */
   transform: translateY(-50%);
-  max-width: calc(72vw - 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 .home-title { margin: 0 0 28px; font-size: clamp(22px, 3.6vw, 44px); font-weight: 600; line-height: 1.1; white-space: nowrap; }
 
 /* The landing sites side by side: a picture of the crater, its name on a see-through band at the bottom. */
-.home-sites { display: flex; flex-wrap: wrap; gap: 14px; }
+.home-sites { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
 .home-site {
   all: unset;
   box-sizing: border-box;
@@ -143,7 +151,7 @@
 @media (max-width: 640px) {
   .home { --home-rocket-x: 86vw; --home-rocket-y: 108vh; }
   .rocket { --h: 105vh; left: var(--rx, 86vw); top: var(--ry, 108vh); }
-  .home-content { top: 40%; max-width: calc(72vw - 16px); }
+  .home-content { top: 55%; right: 16px; }
 }
 
 /* ---------- Curtain between planets: black with stars, fades in while the rocket climbs ---------- */
