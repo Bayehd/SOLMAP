@@ -15,19 +15,19 @@ import { marsGeoJSONLayer } from './geojson';
 import { METERS_PER_DEGREE, publicUrl } from './mars';
 import { ELEVATION_COLORS, type Site } from './sites';
 import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
-import { createModelTextureLayer } from './ModelTextureLayer';
 import { createRegionTextureLayer } from './RegionTextureLayer';
 import { createTrekTileLayer } from './TrekTileLayer';
 import { SPOT_COLOR } from './mineralSpots';
+import { LIMITS } from '../route/config';
 
 type LegendItem = { color: string; label: string };
+/** A continuous color range, low to high: each stop's color at its value (stops are placed by value). */
+export type LegendRamp = { at: number; color: string; label: string }[];
 
 export type LayerDef = {
   id: string;
   title: string;
   group: string; // 'Base map', '<site> terrain (20 m)', '<site> minerals', the rover's name or 'Radiation'
-  /** Base maps are exclusive: turning one on turns the others off. */
-  basemap?: boolean;
   /** false: drawn by the app but not offered in the layer list. */
   listed?: boolean;
   visible: boolean;
@@ -37,6 +37,8 @@ export type LayerDef = {
   source: { name: string; url: string };
   /** Shown under the layer when it is on. */
   legend?: LegendItem[];
+  /** Colors that run over a range of values (the map legend draws a color bar instead of the legend's squares). */
+  ramp?: LegendRamp;
   /** "data" = a measurement; "derived" = computed from one; "artistic" = for looks only. */
   kind: 'data' | 'derived' | 'artistic';
   create: () => Layer;
@@ -45,14 +47,14 @@ export type LayerDef = {
 const ASTRO = 'https://astro.arcgis.com/arcgis/rest/services/OnMars';
 
 /**
- * Walking-slope classes. ASSUMPTION, not a NASA standard: placeholders until the team picks
- * EVA limits. Slopes are from the 20 m DTM, so steps and boulders smaller than 20 m don't show.
+ * Walking-slope classes (the Hazards layer), from LIMITS in route/config.ts, as reviewed by the team. ASSUMPTION,
+ * not a NASA standard. Slopes are from the 20 m DTM, so steps and boulders smaller than 20 m don't show.
  */
 export const SLOPE_CLASSES = [
   // `painted: false` leaves the class transparent on the map so the imagery shows through.
-  { max: 15, label: 'Walkable (< 15°)', color: [76, 175, 80], painted: false },
-  { max: 25, label: 'Caution (15–25°)', color: [255, 193, 7], painted: true },
-  { max: 90, label: 'No-go (≥ 25°)', color: [229, 57, 53], painted: true },
+  { max: LIMITS.cautionDeg, label: `Walkable (< ${LIMITS.cautionDeg}°)`, color: [76, 175, 80], painted: false },
+  { max: LIMITS.nogoDeg, label: `Caution (${LIMITS.cautionDeg}–${LIMITS.nogoDeg}°)`, color: [255, 193, 7], painted: true },
+  { max: 90, label: `No-go (≥ ${LIMITS.nogoDeg}°)`, color: [229, 57, 53], painted: true },
 ] as const;
 
 /**
@@ -80,27 +82,13 @@ export const SAMPLE_KINDS = [
   { label: 'Atmospheric', color: [235, 235, 235] },
 ] as const;
 
-/** Base maps: global, the same at every site. */
+/** Base map: global, the same at every site. */
 const BASE_MAPS: LayerDef[] = [
-  {
-    id: 'model-texture',
-    title: 'Painted Mars',
-    group: 'Base map',
-    basemap: true,
-    visible: false,
-    kind: 'artistic',
-    resolution: '~2.6 km/px (8192 × 4096)',
-    description: 'An artist\'s color texture of Mars (public/models/mars-8k.jpg). Not NASA data: for looks, not for analysis.',
-    source: {
-      name: '"Mars the Red Planet" by DURVESH123, CC BY',
-      url: 'https://sketchfab.com/3d-models/mars-the-red-planet-free-7cf3b31ca60f45cc8e52f7fa863ad09a',
-    },
-    create: () => createModelTextureLayer(publicUrl('models/mars-8k.jpg')),
-  },
   {
     id: 'ctx-mosaic',
     title: 'Satellite photos',
     group: 'Base map',
+    listed: false, // always shown under the data layers, not a choice in the list
     visible: true,
     kind: 'data',
     resolution: '~5 m/px',
@@ -130,6 +118,10 @@ const THERMAL: LayerDef[] = [
       { color: '#202020', label: 'Cooler' },
       { color: '#f0f0f0', label: 'Warmer' },
     ],
+    ramp: [
+      { at: 0, color: '#202020', label: 'Cooler' },
+      { at: 1, color: '#f0f0f0', label: 'Warmer' },
+    ],
     // Trek has tiles to level 9 (~80 m per pixel); closer tiles are cut from those.
     create: () => createTrekTileLayer('THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018', 9),
   },
@@ -148,6 +140,10 @@ const THERMAL: LayerDef[] = [
       { color: '#202020', label: 'Cools fast (dust, sand)' },
       { color: '#f0f0f0', label: 'Stays warm (rock)' },
     ],
+    ramp: [
+      { at: 0, color: '#202020', label: 'Cools fast (dust, sand)' },
+      { at: 1, color: '#f0f0f0', label: 'Stays warm (rock)' },
+    ],
     create: () => createTrekTileLayer('THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018', 9),
   },
 ];
@@ -158,6 +154,13 @@ export const RAD_STOPS = [
   { value: 225, color: [245, 140, 50] },
   { value: 285, color: [190, 30, 70] },
 ];
+
+/** Order of the layer list, most useful first: the safety and the rover's work, then minerals, then heat. Unlisted ids go last. */
+const LIST_ORDER = ['slope', 'elevation', 'traverse', 'samples', 'depot', 'mineral-spots', 'minerals', 'radiation', 'themis-night', 'themis-day'];
+export const listRank = (id: string) => {
+  const i = LIST_ORDER.indexOf(id);
+  return i < 0 ? LIST_ORDER.length : i;
+};
 
 /** Every layer of a site: the base maps, then the site's terrain, minerals and rover layers (where it has data). */
 export function layersFor(site: Site): LayerDef[] {
@@ -193,6 +196,7 @@ export function layersFor(site: Site): LayerDef[] {
       description: `Elevation of the ${rover} landing area, shaded. Meters relative to the MOLA areoid.`,
       source: site.dtmSource,
       legend: ramp.filter((_, i, a) => i === 0 || i === a.length - 1).map((s) => ({ color: rgb(s.color), label: `${s.at} m` })),
+      ramp: ramp.map((s) => ({ at: s.at, color: rgb(s.color), label: `${s.at.toLocaleString('en-US')} m` })),
       create: () =>
         new ImageryTileLayer({
           url: publicUrl(f.dtm),
@@ -217,7 +221,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     {
       id: 'slope',
-      title: 'Steep slopes',
+      title: 'Hazards',
       group: terrain,
       visible: false,
       opacity: 0.65,
@@ -225,7 +229,7 @@ export function layersFor(site: Site): LayerDef[] {
       resolution: '20 m/px',
       description: 'Ground slope computed from the 20 m DTM (Horn method), in walking classes. Class limits are assumptions (src/map/layers.ts).',
       source: { name: `Derived from the ${site.short} DTM by scripts/build_${site.id}_layers.py`, url: site.dtmSource.url },
-      legend: SLOPE_CLASSES.map((c) => ({ color: c.painted ? rgb(c.color) : 'transparent', label: c.painted ? c.label : `${c.label}: not colored` })),
+      legend: SLOPE_CLASSES.filter((c) => c.painted).map((c) => ({ color: rgb(c.color), label: c.label })),
       create: () => {
         // Class i covers [previous max, max). Unmatched (unpainted) slopes become NoData, i.e. transparent.
         const classes = SLOPE_CLASSES.map((c, i) => ({ ...c, min: i === 0 ? 0 : SLOPE_CLASSES[i - 1].max, value: i + 1 }));
@@ -386,6 +390,7 @@ export function layersFor(site: Site): LayerDef[] {
         `Radiation dose ${rover} measured at the surface at each place it stopped: the daily absorbed dose in silicon, averaged over the sols spent there. It rises and falls with the 11-year solar cycle (the Sun's activity shields Mars from galactic cosmic rays).`,
       source: { name: 'NASA PDS PPI Node, MSL RAD RDR + MSL MMGIS rover positions', url: 'https://pds.nasa.gov/ds-view/pds/viewDataset.jsp?dsid=MSL-M-RAD-3-RDR-V1.0' },
       legend: RAD_STOPS.map((s) => ({ color: `rgb(${s.color.join(',')})`, label: `${s.value} µGy/day` })),
+      ramp: RAD_STOPS.map((s) => ({ at: s.value, color: rgb(s.color), label: `${s.value} µGy/day` })),
       create: () =>
         marsGeoJSONLayer({
           url: publicUrl(f.radiation!),

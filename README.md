@@ -21,7 +21,7 @@ An ArcGIS Maps SDK for JavaScript map of Mars with real data layers, shown on a 
 page has two landing areas: **Jezero Crater** (Perseverance) and **Gale Crater** (Curiosity). Each opens
 the same app with the layers that site has data for, and three views of it: **3D** (tilted), **Side**
 and **Top** (straight down). Everything is in GCS
-Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point. The small ⓘ next to each layer name opens its description and a link to the page where its data is published.
+Mars 2000 (ArcGIS wkid 104971). Click the map to read the elevation and slope at that point. The small ⓘ next to each layer name (shown on hover) opens a link to the page where its data is published.
 
 In the **Side** view, the site's terrain area (the 20 m DTM extent: ~30 km square at Jezero, 33 × 57 km
 at Gale) is lifted off the ground and pulled apart into one slab per checked data layer: the rover traverse at the bottom, then slope, minerals
@@ -47,7 +47,6 @@ npm run build
 | Layer | Source | Resolution | Kind |
 |---|---|---|---|
 | Satellite photos (CTX image mosaic) | Murray Lab, Caltech (NASA MRO CTX), hosted by Esri, tinted in Mars color ([about](https://murray-lab.caltech.edu/CTX/)) | ~5 m/px | derived |
-| Painted Mars (SOLMAP model texture) | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
 | Daytime / Nighttime heat (THEMIS) | NASA Mars Odyssey THEMIS IR day and night controlled mosaics (ASU, 2018), tiles from NASA Mars Trek ([about](https://trek.nasa.gov/mars/jpl/config/textRelease.html)); off by default | 100 m/px, to ±65° | data |
 | Realistic crater (Jezero crater model texture) | `public/models/jezero-crater-texture.jpg`, the texture of "Jezero Crater (Mars)" by Gaia (artist model, not NASA data), placed by matching the model's heights to the USGS DTM (RMS 17 m), shown over the 20 m DTM area only; from close up, CTX detail is blended in | ~84 m/px | artistic |
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
@@ -87,8 +86,9 @@ points are solar storms: the stop at sol 4190 (20 May 2024) shows the large sola
 tinted with a butterscotch tan like Perseverance's natural-color images (`MARS_TINT` in
 `src/map/MarsColorCtxLayer.ts`).
 
-**Assumption:** the slope classes (walkable < 15°, caution 15–25°, no-go ≥ 25°) are
-placeholders, not a NASA standard. Change them in `SLOPE_CLASSES` in `src/map/layers.ts`.
+**Assumption:** the hazard (slope) classes (walkable < 16°, caution 16–20°, no-go ≥ 20°), as reviewed by the
+team, are not a NASA standard. The Hazards layer and the route planner share them: change them in `LIMITS` in
+`src/route/config.ts`.
 A 20 m grid also hides steps and boulders smaller than 20 m.
 
 **Assumption:** the mineral map uses fixed thresholds on CRISM summary parameters
@@ -133,7 +133,7 @@ PDS file gives it. The tube lies under the rover, within about a meter of the po
   ArcGIS's `GeoJSONLayer`, which assumes Earth (WGS84) coordinates.
 - `src/map/SiteElevationLayer.ts`: the 3D ground (global DEM + the site's 20 m DTM, feathered
   over ~600 m at the DTM's edge).
-- `src/map/UpsampledTileLayer.ts`, `src/map/ModelTextureLayer.ts`, `src/map/RegionTextureLayer.ts`: custom
+- `src/map/UpsampledTileLayer.ts`, `src/map/RegionTextureLayer.ts`: custom
   tile layers. CTX only has tiles to level 12 (~5 m/px), so closer tiles are cut from those and enlarged.
 - `src/map/mars.ts`: the Mars coordinate system and tiling scheme.
 - In development, `window.solmap` holds the map, view and layers for the browser console.
@@ -210,9 +210,6 @@ the next drive.
 
 ## Credits
 
-Mars color texture (`public/models/mars-8k.jpg`, 8192 × 4096, re-encoded at JPEG quality 85):
-"Mars the Red Planet" by DURVESH123, CC Attribution, Sketchfab
-(https://sketchfab.com/3d-models/mars-the-red-planet-free-7cf3b31ca60f45cc8e52f7fa863ad09a).
 Jezero crater texture (`public/models/jezero-crater-texture.jpg`): "Jezero Crater (Mars)" by Gaia, CC BY 4.0,
 Sketchfab (https://sketchfab.com/3d-models/jezero-crater-mars-f8501fbe652241b585f7734bee259ad3).
 Sample tube model (`public/models/sample-tube.glb`): "Red Horizon Mars sample tube", added by the team
