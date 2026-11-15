@@ -3,7 +3,6 @@
 import type Layer from '@arcgis/core/layers/Layer';
 import ElevationLayer from '@arcgis/core/layers/ElevationLayer';
 import ImageryTileLayer from '@arcgis/core/layers/ImageryTileLayer';
-import TileLayer from '@arcgis/core/layers/TileLayer';
 import * as rasterFunctionUtils from '@arcgis/core/layers/support/rasterFunctionUtils';
 import RasterColormapRenderer from '@arcgis/core/renderers/RasterColormapRenderer';
 import RasterShadedReliefRenderer from '@arcgis/core/renderers/RasterShadedReliefRenderer';
@@ -12,6 +11,7 @@ import UniqueValueRenderer from '@arcgis/core/renderers/UniqueValueRenderer';
 import MultipartColorRamp from '@arcgis/core/rest/support/MultipartColorRamp';
 import { marsGeoJSONLayer } from './geojson';
 import { METERS_PER_DEGREE, publicUrl } from './mars';
+import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
 import { createModelTextureLayer } from './ModelTextureLayer';
 import { createUpsampledTileLayer } from './UpsampledTileLayer';
 
@@ -112,14 +112,16 @@ export const LAYERS: LayerDef[] = [
   },
   {
     id: 'ctx-mosaic',
-    title: 'CTX image mosaic',
+    title: 'CTX image mosaic (Mars color)',
     group: 'Base map',
     visible: true,
     kind: 'data',
     resolution: '~5 m/px',
-    description: 'Global grayscale mosaic of MRO Context Camera images (uncontrolled: features can be offset by tens of meters).',
-    source: { name: 'Murray Lab, Caltech (MRO CTX), hosted by Esri', url: `${ASTRO}/CTX1/MapServer` },
-    create: () => new TileLayer({ url: `${ASTRO}/CTX1/MapServer` }),
+    description:
+      'Global mosaic of MRO Context Camera images (uncontrolled: features can be offset by tens of meters). CTX is grayscale: ' +
+      'its brightness is shown in the color of the Viking MDIM 2.1 mosaic at the same place (src/map/MarsColorCtxLayer.ts).',
+    source: { name: 'Murray Lab, Caltech (MRO CTX) + USGS / NASA Ames (Viking MDIM 2.1), hosted by Esri', url: `${ASTRO}/CTX1/MapServer` },
+    create: () => createMarsColorCtxLayer(`${ASTRO}/CTX1/MapServer`, createUpsampledTileLayer(`${ASTRO}/MDIM/MapServer`, 7)),
   },
   {
     id: 'jezero-elevation',

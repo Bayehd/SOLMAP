@@ -35,7 +35,7 @@ npm run build
 | Layer | Source | Resolution | Kind |
 |---|---|---|---|
 | Viking color mosaic (MDIM 2.1) | USGS / NASA Ames, hosted by Esri | 232 m/px | data |
-| CTX image mosaic | Murray Lab, Caltech (MRO CTX), hosted by Esri | ~5 m/px | data |
+| CTX image mosaic (Mars color) | Murray Lab, Caltech (MRO CTX), colored with the Viking MDIM 2.1 mosaic, hosted by Esri | ~5 m/px | derived |
 | SOLMAP model texture | `public/models/mars-8k.jpg` (artist texture, not NASA data) | ~2.6 km/px | artistic |
 | 3D ground | NASA MGS MOLA global DEM (USGS/NASA, hosted by Esri), with the Jezero DTM in its place | 463 m / 20 m | data |
 | Jezero elevation | USGS Mars 2020 TRN CTX DTM (Fergason et al. 2020) | 20 m/px | data |
@@ -44,6 +44,11 @@ npm run build
 | Perseverance traverse and stops | NASA/JPL Mars 2020 MMGIS, to sol 2022 | per drive | data |
 | Perseverance samples collected | NASA Mars 2020 rock sample list, placed with the MMGIS rover positions | 28 sealed samples, to sol 1441 | data |
 | Three Forks sample depot | NASA PDS Geosciences Node, Mars 2020 Three Forks depot bundle (sample tube locations) | 10 tubes, dropped sols 653–690 | data |
+
+**Assumption:** CTX is grayscale. To show it in Mars color, each pixel keeps the CTX brightness and is
+tinted with a butterscotch tan like Perseverance's natural-color images (`MARS_TINT`), with 30 % of the
+Viking MDIM 2.1 hue at that place mixed in (`MDIM_SHARE`, both in `src/map/MarsColorCtxLayer.ts`). The
+Viking colors are enhanced (dark ground turns blue), so they are not used on their own.
 
 **Assumption:** the slope classes (walkable < 15°, caution 15–25°, no-go ≥ 25°) are
 placeholders, not a NASA standard. Change them in `SLOPE_CLASSES` in `src/map/layers.ts`.
