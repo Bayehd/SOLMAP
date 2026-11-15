@@ -128,7 +128,7 @@ export function MapApp({
   const [labelPos, setLabelPos] = useState<{ id: string; x: number; y: number }[]>([]);
   const [hoveredSlab, setHoveredSlab] = useState<string | null>(null);
   const defs = useMemo(() => layersFor(site), [site]);
-  const groups = useMemo(() => [...new Set(defs.map((l) => l.group))], [defs]);
+  const groups = useMemo(() => [...new Set(defs.filter((l) => l.listed !== false).map((l) => l.group))], [defs]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>(() => initialVisibility(defs));
   const [probe, setProbe] = useState<Probe | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -712,7 +712,7 @@ export function MapApp({
         {panelOpen &&
           groups.map((group) => (
             <section key={group} aria-label={group}>
-              {defs.filter((l) => l.group === group).map((def) => (
+              {defs.filter((l) => l.group === group && l.listed !== false).map((def) => (
                 <div key={def.id} className="layer-row">
                   <label data-on={visibility[def.id]}>
                     <input
@@ -738,13 +738,10 @@ export function MapApp({
                   </button>
                   {infoId === def.id && (
                     <div className="layer-info">
-                      <p>{def.description}</p>
-                      <p className="layer-info-src">
-                        Source:{' '}
-                        <a className="link" href={def.source.url} target="_blank" rel="noreferrer">
-                          {def.source.name} ↗
-                        </a>
-                      </p>
+                      Source:{' '}
+                      <a href={def.source.url} target="_blank" rel="noreferrer">
+                        {def.source.name} ↗
+                      </a>
                     </div>
                   )}
                 </div>

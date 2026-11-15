@@ -28,6 +28,8 @@ export type LayerDef = {
   group: string; // 'Base map', '<site> terrain (20 m)', '<site> minerals', the rover's name or 'Radiation'
   /** Base maps are exclusive: turning one on turns the others off. */
   basemap?: boolean;
+  /** false: drawn by the app but not offered in the layer list. */
+  listed?: boolean;
   visible: boolean;
   opacity?: number;
   description: string;
@@ -170,6 +172,7 @@ export function layersFor(site: Site): LayerDef[] {
       id: 'crater-texture',
       title: site.texture.title,
       group: terrain,
+      listed: false,
       visible: true,
       kind: 'artistic',
       resolution: '~84 m/px, with CTX detail (~5 m/px) close up',
