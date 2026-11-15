@@ -41,5 +41,6 @@ export const ASSUMPTIONS = {
   maxSideCells: 1100,
 };
 
-/** Same bands as the slope layer (SLOPE_CLASSES in map/layers.ts). Our assumption, not a NASA standard. */
-export const LIMITS = { cautionDeg: 15, nogoDeg: 25 };
+/** Hazard bands, as reviewed by the team: caution from 16°, no-go from 20°. The Hazards layer (SLOPE_CLASSES in
+ * map/layers.ts) uses the same bands. Our assumption, not a NASA standard. */
+export const LIMITS = { cautionDeg: 16, nogoDeg: 20 };

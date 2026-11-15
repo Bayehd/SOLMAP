@@ -15,10 +15,10 @@ import { marsGeoJSONLayer } from './geojson';
 import { METERS_PER_DEGREE, publicUrl } from './mars';
 import { ELEVATION_COLORS, type Site } from './sites';
 import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
-import { createModelTextureLayer } from './ModelTextureLayer';
 import { createRegionTextureLayer } from './RegionTextureLayer';
 import { createTrekTileLayer } from './TrekTileLayer';
 import { SPOT_COLOR } from './mineralSpots';
+import { LIMITS } from '../route/config';
 
 type LegendItem = { color: string; label: string };
 /** A continuous color range, low to high: each stop's color at its value (stops are placed by value). */
@@ -28,8 +28,6 @@ export type LayerDef = {
   id: string;
   title: string;
   group: string; // 'Base map', '<site> terrain (20 m)', '<site> minerals', the rover's name or 'Radiation'
-  /** Base maps are exclusive: turning one on turns the others off. */
-  basemap?: boolean;
   /** false: drawn by the app but not offered in the layer list. */
   listed?: boolean;
   visible: boolean;
@@ -49,14 +47,14 @@ export type LayerDef = {
 const ASTRO = 'https://astro.arcgis.com/arcgis/rest/services/OnMars';
 
 /**
- * Walking-slope classes. ASSUMPTION, not a NASA standard: placeholders until the team picks
- * EVA limits. Slopes are from the 20 m DTM, so steps and boulders smaller than 20 m don't show.
+ * Walking-slope classes (the Hazards layer), from LIMITS in route/config.ts, as reviewed by the team. ASSUMPTION,
+ * not a NASA standard. Slopes are from the 20 m DTM, so steps and boulders smaller than 20 m don't show.
  */
 export const SLOPE_CLASSES = [
   // `painted: false` leaves the class transparent on the map so the imagery shows through.
-  { max: 15, label: 'Walkable (< 15°)', color: [76, 175, 80], painted: false },
-  { max: 25, label: 'Caution (15–25°)', color: [255, 193, 7], painted: true },
-  { max: 90, label: 'No-go (≥ 25°)', color: [229, 57, 53], painted: true },
+  { max: LIMITS.cautionDeg, label: `Walkable (< ${LIMITS.cautionDeg}°)`, color: [76, 175, 80], painted: false },
+  { max: LIMITS.nogoDeg, label: `Caution (${LIMITS.cautionDeg}–${LIMITS.nogoDeg}°)`, color: [255, 193, 7], painted: true },
+  { max: 90, label: `No-go (≥ ${LIMITS.nogoDeg}°)`, color: [229, 57, 53], painted: true },
 ] as const;
 
 /**
@@ -84,27 +82,13 @@ export const SAMPLE_KINDS = [
   { label: 'Atmospheric', color: [235, 235, 235] },
 ] as const;
 
-/** Base maps: global, the same at every site. */
+/** Base map: global, the same at every site. */
 const BASE_MAPS: LayerDef[] = [
-  {
-    id: 'model-texture',
-    title: 'Painted Mars',
-    group: 'Base map',
-    basemap: true,
-    visible: false,
-    kind: 'artistic',
-    resolution: '~2.6 km/px (8192 × 4096)',
-    description: 'An artist\'s color texture of Mars (public/models/mars-8k.jpg). Not NASA data: for looks, not for analysis.',
-    source: {
-      name: '"Mars the Red Planet" by DURVESH123, CC BY',
-      url: 'https://sketchfab.com/3d-models/mars-the-red-planet-free-7cf3b31ca60f45cc8e52f7fa863ad09a',
-    },
-    create: () => createModelTextureLayer(publicUrl('models/mars-8k.jpg')),
-  },
   {
     id: 'ctx-mosaic',
     title: 'Satellite photos',
     group: 'Base map',
+    listed: false, // always shown under the data layers, not a choice in the list
     visible: true,
     kind: 'data',
     resolution: '~5 m/px',
@@ -171,6 +155,13 @@ export const RAD_STOPS = [
   { value: 285, color: [190, 30, 70] },
 ];
 
+/** Order of the layer list, most useful first: the safety and the rover's work, then minerals, then heat. Unlisted ids go last. */
+const LIST_ORDER = ['slope', 'elevation', 'traverse', 'samples', 'depot', 'mineral-spots', 'minerals', 'radiation', 'themis-night', 'themis-day'];
+export const listRank = (id: string) => {
+  const i = LIST_ORDER.indexOf(id);
+  return i < 0 ? LIST_ORDER.length : i;
+};
+
 /** Every layer of a site: the base maps, then the site's terrain, minerals and rover layers (where it has data). */
 export function layersFor(site: Site): LayerDef[] {
   const terrain = `${site.short} terrain (20 m)`;
@@ -230,7 +221,7 @@ export function layersFor(site: Site): LayerDef[] {
     },
     {
       id: 'slope',
-      title: 'Steep slopes',
+      title: 'Hazards',
       group: terrain,
       visible: false,
       opacity: 0.65,
