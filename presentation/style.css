@@ -184,3 +184,18 @@ table.cmp tr:last-child th, table.cmp tr:last-child td { border-bottom:0; }
 .pl h3 { font-size:56px; margin:0; } .pl p { font-size:30px; margin:0; }
 .bracket { width:40px; border:3px solid #fff; border-right:0; }
 .bracket span { position:absolute; left:-58px; top:50%; transform:translateY(-50%) rotate(-90deg); white-space:nowrap; font:700 30px 'Rajdhani'; letter-spacing:2px; }
+
+/* full-bleed story slides with slow camera moves */
+.full { left:0; top:0; width:1920px; height:1080px; object-fit:cover; }
+.reveal section.present .kb-up   { animation:kbUp 9s ease-out both; }
+.reveal section.present .kb-in   { animation:kbIn 10s ease-out both; }
+.reveal section.present .kb-pan  { animation:kbPan 10s ease-in-out both; }
+.reveal section.present .kb-pan2 { animation:kbPan2 10s ease-in-out both; }
+.reveal section.present .kb-tube { animation:kbTube 9s ease-out both; }
+@keyframes kbUp   { 0%{transform:scale(1.12) translateY(40px)} 6%{transform:scale(1.12) translate(-3px,38px)} 10%{transform:scale(1.12) translate(3px,36px)} 100%{transform:scale(1) translateY(0)} }
+@keyframes kbIn   { from{transform:scale(1)} to{transform:scale(1.1)} }
+@keyframes kbPan  { from{transform:scale(1.1) translateX(50px)} to{transform:scale(1.1) translateX(-50px)} }
+@keyframes kbPan2 { from{transform:scale(1.1) translateX(-50px)} to{transform:scale(1.15) translateX(0)} }
+@keyframes kbTube { from{transform:scale(1)} to{transform:scale(1.18); transform-origin:80% 65%} }
+.kb-tube { transform-origin:80% 65%; }
+@media (prefers-reduced-motion: reduce) { .reveal section.present .full { animation:none; } }
