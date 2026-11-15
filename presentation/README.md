@@ -1,17 +1,17 @@
 # Project Red Horizon – SOLMAP presentation
 
-Animated [reveal.js](https://revealjs.com) version of the *Project Red Horizon* deck (SOLMAP, Challenge #14).
+Animated [reveal.js](https://revealjs.com) deck (SOLMAP, Challenge #14). reveal.js 5.1.0 is bundled in `lib/`, so it works offline.
 
 ## Run
-Open `index.html` in a browser, or serve the folder:
-
 ```bash
 cd presentation && python3 -m http.server 8000
 ```
+Then open http://localhost:8000.
 
-## Controls & effects
-- → / Space / click arrow: next. Every slide's elements fly in when it appears.
-- On slides with a rocket (title, "Awesome Planet" shuttle, "Thanks"), the first "next" launches it off the top of the slide with an exhaust trail; smoke keeps billowing behind it until you press "next" again to change slide. Between slide 1 and 2 the smoke rises until it fills the whole screen, and slide 2 appears as it clears.
-- reveal.js 5.1.0 is bundled in `lib/` so it works offline.
+## Slides & effects
+1. **Cover** – hills rise, title letters spread out.
+2. **Launch** – first "next": the rocket lifts off and smoke fills the screen; second "next": the smoke clears onto the next slide.
+3. **Control room** – "It is bigger than one person".
+4. **Mars plain** → 5. **Layers** rise out of the same ground → 6. **Rover tracks** → 7. **Sample** (camera zooms into the scene).
 
-Template credits: Slidesgo, Flaticon, Freepik.
+The Mars slides cross-fade with no slide movement so they read as one place.
