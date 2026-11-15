@@ -17,7 +17,6 @@ import { ELEVATION_COLORS, type Site } from './sites';
 import { createMarsColorCtxLayer } from './MarsColorCtxLayer';
 import { createModelTextureLayer } from './ModelTextureLayer';
 import { createRegionTextureLayer } from './RegionTextureLayer';
-import { createUpsampledTileLayer } from './UpsampledTileLayer';
 
 type LegendItem = { color: string; label: string };
 
@@ -80,20 +79,6 @@ export const SAMPLE_KINDS = [
 /** Base maps: global, the same at every site. */
 const BASE_MAPS: LayerDef[] = [
   {
-    id: 'mdim',
-    title: 'Viking color mosaic (MDIM 2.1)',
-    group: 'Base map',
-    basemap: true,
-    visible: true,
-    kind: 'data',
-    resolution: '232 m/px',
-    description: 'Global color mosaic from the Viking orbiters, colorized by NASA Ames.',
-    source: { name: 'USGS / NASA Ames, hosted by Esri', url: `${ASTRO}/MDIM/MapServer` },
-    // The service advertises 18 levels but only has tiles to level 7; beyond that, ArcGIS upsamples.
-    // The service advertises 18 levels but only has tiles to level 7.
-    create: () => createUpsampledTileLayer(`${ASTRO}/MDIM/MapServer`, 7),
-  },
-  {
     id: 'model-texture',
     title: 'SOLMAP model texture',
     group: 'Base map',
@@ -117,9 +102,9 @@ const BASE_MAPS: LayerDef[] = [
     resolution: '~5 m/px',
     description:
       'Global mosaic of MRO Context Camera images (uncontrolled: features can be offset by tens of meters). CTX is grayscale: ' +
-      'its brightness is shown in the color of the Viking MDIM 2.1 mosaic at the same place (src/map/MarsColorCtxLayer.ts).',
-    source: { name: 'Murray Lab, Caltech (MRO CTX) + USGS / NASA Ames (Viking MDIM 2.1), hosted by Esri', url: `${ASTRO}/CTX1/MapServer` },
-    create: () => createMarsColorCtxLayer(`${ASTRO}/CTX1/MapServer`, createUpsampledTileLayer(`${ASTRO}/MDIM/MapServer`, 7)),
+      'its brightness is shown in a Mars surface color (src/map/MarsColorCtxLayer.ts).',
+    source: { name: 'Murray Lab, Caltech (NASA MRO CTX), hosted by Esri', url: 'https://murray-lab.caltech.edu/CTX/' },
+    create: () => createMarsColorCtxLayer(`${ASTRO}/CTX1/MapServer`),
   },
 ];
 

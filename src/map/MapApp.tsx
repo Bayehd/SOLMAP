@@ -148,7 +148,8 @@ export function MapApp({
     const tubes = createSampleTubes(site); // sample tubes and their boards, only in the Rover view
     const map = new ArcGISMap({
       layers: [...defs.map((d) => layers[d.id]), tubes.tubeLayer, routeLayer, guideLayer, roverLayer, tubes.boardLayer, ...stack.layers],
-      ground: { layers: [createSiteElevationLayer(site, globalElevation)] },
+      // Mars tan under the CTX mosaic, so its few coverage gaps don't show as white streaks.
+      ground: { layers: [createSiteElevationLayer(site, globalElevation)], surfaceColor: [176, 128, 90] },
     });
     void tubes.load();
     return { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, tubes, stack };

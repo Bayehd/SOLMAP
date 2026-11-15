@@ -80,7 +80,7 @@ export const SITES: Record<SiteId, Site> = {
         url: 'https://sketchfab.com/3d-models/jezero-crater-mars-f8501fbe652241b585f7734bee259ad3',
       },
     },
-    immersiveLayers: ['mdim', 'ctx-mosaic', 'crater-texture'],
+    immersiveLayers: ['ctx-mosaic', 'crater-texture'],
     elevationStops: [-2711, -2400, -2100, -1800, -1516],
     dtmSource: { name: 'USGS Astrogeology, Mars 2020 TRN CTX DTM (Fergason et al. 2020)', url: 'https://planetarymaps.usgs.gov/mosaic/mars2020_trn/CTX/' },
     roverSource: {
@@ -105,7 +105,7 @@ export const SITES: Record<SiteId, Site> = {
       environment: 'data/gale/msl_environment.json',
       radiation: 'data/gale/msl_rad.geojson',
     },
-    immersiveLayers: ['mdim', 'ctx-mosaic'],
+    immersiveLayers: ['ctx-mosaic'],
     elevationStops: [-4625, -4300, -3900, -3000, -1500],
     dtmSource: {
       name: 'USGS Astrogeology, MSL Gale merged DEM (HiRISE + CTX), averaged to 20 m',
