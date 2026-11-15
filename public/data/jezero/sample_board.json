@@ -1,0 +1,173 @@
+{
+  "about": "Information shown on each sample's board (click a sample tube on the map). Keyed by sample number. \"image\": a path under public/ (e.g. \"data/jezero/boards/roubion.jpg\") or a URL; \"imageCaption\": credit or caption under it; \"text\": the description (blank lines start new paragraphs). Leave a field empty to hide it. \"name\" is only a reminder; the map uses the NASA sample list.",
+  "samples": {
+    "1": {
+      "name": "Roubion",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "2": {
+      "name": "Montdenier",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "3": {
+      "name": "Montagnac",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "4": {
+      "name": "Salette",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "5": {
+      "name": "Coulettes",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "6": {
+      "name": "Robine",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "7": {
+      "name": "Malay",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "8": {
+      "name": "Ha'ahóni",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "9": {
+      "name": "Atsá",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "10": {
+      "name": "Swift Run",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "11": {
+      "name": "Skyland",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "12": {
+      "name": "Hazeltop",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "13": {
+      "name": "Bearwallow",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "14": {
+      "name": "Shuyak",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "15": {
+      "name": "Mageik",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "16": {
+      "name": "Kukaklek",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "17": {
+      "name": "Atmo Mountain",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "18": {
+      "name": "Crosswind Lake",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "19": {
+      "name": "Melyn",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "20": {
+      "name": "Otis Peak",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "21": {
+      "name": "Pilot Mountain",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "22": {
+      "name": "Pelican Point",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "23": {
+      "name": "Lefroy Bay",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "24": {
+      "name": "Comet Geyser",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "25": {
+      "name": "Sapphire Canyon",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "26": {
+      "name": "Silver Mountain",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "27": {
+      "name": "Green Gardens",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    },
+    "28": {
+      "name": "Main River",
+      "image": "",
+      "imageCaption": "",
+      "text": ""
+    }
+  }
+}

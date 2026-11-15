@@ -14,6 +14,7 @@ import { RoutePanel } from '../route/RoutePanel';
 import { useRoutePlanner } from '../route/useRoutePlanner';
 import { MINERAL_CLASSES, SLOPE_CLASSES, globalElevationLayer, layersFor, type LayerDef } from './layers';
 import { createRouteGuideLayer, routeGuideUpdater } from './routeGuide';
+import { createSampleTubes } from './sampleTubes';
 import { createSiteElevationLayer } from './SiteElevationLayer';
 import { STACKABLE, createLayerStack, groundLayerOf, type StackSlab } from './layerStack';
 import { METERS_PER_DEGREE, marsSR, publicUrl } from './mars';
@@ -82,6 +83,7 @@ const ROVER_FRONT = { file: 'models/rover-front.webp', refW: 1000, refH: 1613, l
 const ROVER_VIEW_SPEED = 30; // m/s while in this view (the whole route takes ~25 min instead of 90 s)
 const ROVER_CLIP_NEAR_M = 0.5; // draw the ground from this close to the camera
 const ROVER_CLIP_FAR_M = 400_000; // to the horizon and the crater rims
+const BOARD_FOV = 60; // degrees: a normal lens while a sample board is up, so it isn't stretched (driving restores ROVER_FOV)
 
 
 const normalLens = (camera: Camera) => {
@@ -132,11 +134,17 @@ export function MapApp({
   const [panelOpen, setPanelOpen] = useState(() => window.innerWidth > 640); // collapsed on phones
   const [drive, setDrive] = useState<DriveState>({ ready: false, playing: false, km: 0, totalKm: 0 });
   const [riding, setRiding] = useState(false); // in the Rover view, on the rover (after the camera has flown down)
+  // A sample board is up: the camera has turned off the rover to it, so the rover is drawn in 3D, not as the picture.
+  const [boardUp, setBoardUp] = useState(false);
+  const boardUpRef = useRef(boardUp);
+  boardUpRef.current = boardUp;
   const [viewSize, setViewSize] = useState({ width: 0, height: 0 });
   const roverRef = useRef<ReturnType<typeof attachRover> | null>(null);
+  const driveRef = useRef(drive);
+  driveRef.current = drive;
 
   // One Map and one set of layers for both views, so a toggle applies to both.
-  const { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, stack } = useMemo(() => {
+  const { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, tubes, stack } = useMemo(() => {
     const layers: Record<string, Layer> = {};
     for (const def of defs) {
       const layer = def.create();
@@ -151,11 +159,13 @@ export function MapApp({
     const routeLayer = new GraphicsLayer({ id: 'route', title: 'Safest route', elevationInfo: { mode: 'on-the-ground' } });
     const guideLayer = createRouteGuideLayer(); // the route line of the Rover view
     const stack = createLayerStack(site, defs);
+    const tubes = createSampleTubes(site); // sample tubes and their boards, only in the Rover view
     const map = new ArcGISMap({
-      layers: [...defs.map((d) => layers[d.id]), routeLayer, guideLayer, roverLayer, ...stack.layers],
+      layers: [...defs.map((d) => layers[d.id]), tubes.tubeLayer, routeLayer, guideLayer, roverLayer, tubes.boardLayer, ...stack.layers],
       ground: { layers: [createSiteElevationLayer(site, globalElevation)] },
     });
-    return { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, stack };
+    void tubes.load();
+    return { map, layers, globalElevation, roverLayer, routeLayer, guideLayer, tubes, stack };
   }, [site, defs]);
 
   const planner = useRoutePlanner(routeLayer, layers, site);
@@ -212,6 +222,22 @@ export function MapApp({
       if (!p || cameraViewRef.current === 'side') return; // a click there lands on a slab, not the ground
       const point = new Point({ x: p.longitude ?? p.x, y: p.latitude ?? p.y, spatialReference: marsSR() });
       if (plannerRef.current.pick(point.x, point.y)) return; // picking a route point: don't open the probe
+      // Rover view: a click on a sample tube stops the drive, stands its board beside the rover and turns the
+      // camera so the board and the tube both show.
+      if (cameraViewRef.current === 'rover') {
+        const hit = await view.hitTest(event, { include: [tubes.tubeLayer] }).catch(() => null);
+        const g = hit?.results.find((r) => r.type === 'graphic');
+        const samples = g && g.type === 'graphic' ? tubes.samplesOf(g.graphic) : null;
+        if (samples) {
+          if (driveRef.current.playing) roverRef.current?.toggleDrive();
+          setProbe(null);
+          setBoardUp(true);
+          boardUpRef.current = true; // before the camera turns, so nothing puts it back on the rover
+          const { position, heading, tilt } = await tubes.showBoard(view, samples, ROVER_CAM_UP_M);
+          view.goTo(new Camera({ position, heading, tilt, fov: BOARD_FOV }), { duration: 1200, easing: 'cubic-in-out' }).catch(() => {});
+          return;
+        }
+      }
       const inDtm = insideSite(site, { lon: point.x, lat: point.y });
       const pixel = async (id: string) => {
         if (!inDtm || !layers[id]) return null;
@@ -257,12 +283,24 @@ export function MapApp({
       view.destroy();
       viewRef.current = null;
     };
-  }, [map, layers, globalElevation, roverLayer, site]);
+  }, [map, layers, globalElevation, roverLayer, tubes, site]);
 
   useEffect(() => {
-    roverLayer.visible = showRover && cameraView !== 'side' && !riding; // hidden under the stack, or shown as a picture
+    roverLayer.visible = showRover && cameraView !== 'side' && (!riding || boardUp); // hidden under the stack, or shown as a picture
     guideLayer.visible = cameraView === 'rover';
-  }, [showRover, roverLayer, guideLayer, cameraView, riding]);
+    tubes.tubeLayer.visible = tubes.boardLayer.visible = cameraView === 'rover';
+    if (cameraView !== 'rover') {
+      tubes.clearBoard();
+      setBoardUp(false);
+    }
+  }, [showRover, roverLayer, guideLayer, tubes, cameraView, riding, boardUp]);
+
+  // Driving on takes the board down.
+  useEffect(() => {
+    if (!drive.playing) return;
+    tubes.clearBoard();
+    setBoardUp(false); // the next drive step puts the camera back on the rover
+  }, [drive.playing, tubes]);
 
   // Rover view: the camera rides behind the rover and looks along the route; it moves with every step of the drive.
   useEffect(() => {
@@ -312,7 +350,7 @@ export function MapApp({
       () => view.updating,
       (updating) => {
         if (updating) return;
-        if (!entering) view.camera = cameraAt(rover.pose());
+        if (!entering && !boardUpRef.current) view.camera = cameraAt(rover.pose());
       },
     );
     // ArcGIS sets the near clipping plane from the camera's height (~8 m here), which would cut away the ground
@@ -506,7 +544,7 @@ export function MapApp({
       {cameraView !== 'rover' && <RoutePanel planner={planner} site={site} />}
       </div>
 
-      {riding && viewSize.width > 0 && (
+      {riding && !boardUp && viewSize.width > 0 && (
         <img
           className="rover-front"
           src={publicUrl(ROVER_FRONT.file)}
